@@ -55,11 +55,13 @@ CREATE TABLE employees (
 -- username：员工姓名 / 登录名
 -- dept：所属部门（如 R&D、QA、Legal）
 -- branch：所属分公司
--- level：员工职级或安全级别（如 P5、P8、VP）
+-- ? level：员工职级或安全级别（如 P5、P8、VP）
 -- current_projects：当前参与的项目列表（JSON 数组）
 -- is_contractor：是否为外包或临时员工
 -- created_at：记录创建时间
 -- updated_at：记录更新时间
+
+-- TODO 员工的级别会影响到功能,还需要设立级别的枚举类型
 
 
 -- ! 项目表
@@ -106,13 +108,12 @@ CREATE TABLE project_assets (
 -- asset_id：资源唯一标识
 -- project_id：所属项目ID
 -- asset_name：资源名称
--- ? asset_type：资源类型
--- ? asset_stage：资源产生阶段
--- ? security_level：资源密级
+-- ? asset_type：资源类型(需求文档、设计文档、源代码、测试报告、部署脚本、运维文档)
+-- ? asset_stage：资源产生阶段 (立项、需求设计、研发实现、测试验证、上线交付、归档)
+-- ? security_level：资源密级(公开、内部、机密、高度机密)
 -- created_by_employee_id：资源创建人
 -- created_at：创建时间
 
--- TODO 这三个类型都需要再规划，数据库不用枚举写死，代码层面用枚举写死
 
 
 -- ! 策略表
@@ -139,20 +140,6 @@ CREATE TABLE policies (
 -- enabled：策略是否启用，可动态开关
 -- created_at：策略创建时间
 -- updated_at：策略更新时间
-
-
-CREATE TABLE audit_logs (
-    log_id VARCHAR(64) PRIMARY KEY COMMENT '审计日志ID',
-    user_id VARCHAR(64) NOT NULL COMMENT '操作用户ID',
-    resource_id VARCHAR(64) COMMENT '被访问资源ID',
-    action VARCHAR(32) NOT NULL COMMENT '操作类型',
-    decision VARCHAR(16) NOT NULL COMMENT '决策结果（ALLOW/DENY）',
-    matched_policies JSON COMMENT '命中的策略列表',
-    deny_reason VARCHAR(255) COMMENT '拒绝原因',
-    network_zone VARCHAR(32) COMMENT '访问网络环境',
-    device_safety FLOAT COMMENT '设备安全评分',
-    access_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '访问时间'
-) COMMENT='安全审计日志表';
 
 
 
