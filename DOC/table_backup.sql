@@ -31,11 +31,14 @@ CREATE TABLE branches (
 CREATE TABLE employees (
     employee_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     employee_name VARCHAR(64) NOT NULL,
-    dept VARCHAR(64) NOT NULL,
-    branch VARCHAR(64) NOT NULL,
+    dept_id BIGINT NOT NULL,
+    branch_id BIGINT NOT NULL,
     level VARCHAR(32) NOT NULL,
     current_projects JSON,
     is_contractor BOOLEAN DEFAULT FALSE,
+    status VARCHAR(16) DEFAULT 'ACTIVE', 
+    password VARCHAR(255) NOT NULL,               
+    must_change_password BOOLEAN DEFAULT TRUE,    
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_employee_dept
@@ -58,10 +61,14 @@ CREATE TABLE employees (
 -- ? level：员工职级或安全级别（如 P5、P8、VP）
 -- current_projects：当前参与的项目列表（JSON 数组）
 -- is_contractor：是否为外包或临时员工
+-- status 员工状态: ACTIVE(在职), INACTIVE(离职)
+-- password 登录密码（加密存储）
+-- must_change_password 是否首次登录需要修改密码
 -- created_at：记录创建时间
 -- updated_at：记录更新时间
 
--- TODO 员工的级别会影响到功能,还需要设立级别的枚举类型
+-- TODO 需要确认员工的级别是否保留为VARCHAR ，还是切换为 int类型
+
 
 
 -- ! 项目表
