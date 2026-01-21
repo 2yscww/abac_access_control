@@ -9,15 +9,19 @@ import lombok.Data;
 
 @Data
 public class Employees {
+    // TODO 做出员工的登录功能
     private Long employeeId;
     private String employeeName;
 
     private Long deptId;
     private Long branchId;
 
+    // ? 安全级别
     private EmployeeLevel level;
 
-    private String currentProjects;   // ? JSON 字符串 当前员工负责的项目
+    // ? JSON 字符串 当前员工负责的项目
+    private String currentProjects; 
+    
 
     private Boolean isContractor;
 
