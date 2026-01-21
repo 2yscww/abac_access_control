@@ -9,4 +9,4 @@ INSERT INTO branches(branch_name) VALUES('久仰哈基米科技');
 
 -- ? 员工表
 
-INSERT INTO employees(employee_name,dept_id,branch_id,)
+INSERT INTO employees(employee_name,dept_id,branch_id,level,password) VALUES('冬雪莲',1,1,8,'123456');

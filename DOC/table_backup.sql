@@ -33,7 +33,7 @@ CREATE TABLE employees (
     employee_name VARCHAR(64) NOT NULL,
     dept_id BIGINT NOT NULL,
     branch_id BIGINT NOT NULL,
-    level VARCHAR(32) NOT NULL,
+    level INT NOT NULL,
     current_projects JSON,
     is_contractor BOOLEAN DEFAULT FALSE,
     status VARCHAR(16) DEFAULT 'ACTIVE', 
@@ -67,7 +67,7 @@ CREATE TABLE employees (
 -- created_at：记录创建时间
 -- updated_at：记录更新时间
 
--- TODO 需要确认员工的级别是否保留为VARCHAR ，还是切换为 int类型
+
 
 
 
@@ -75,8 +75,8 @@ CREATE TABLE employees (
 CREATE TABLE projects (
     project_id BIGINT PRIMARY KEY ,
     project_name VARCHAR(128) NOT NULL,
-    project_phase VARCHAR(32) NOT NULL,
-    created_by_employee_id VARCHAR(64),
+    project_phase INT NOT NULL,
+    created_by_employee_id BIGINT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
