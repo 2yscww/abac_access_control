@@ -20,8 +20,12 @@ public class Response<T> {
     // ? 静态方法构造
 
     // * 示范构造
-    // public static <T> Response<T> Success(T data, String msg) {
-    //     return new Response<>(200, msg, data);
-    // }
+    public static <T> Response<T> Success(T data, String msg) {
+        return new Response<>(200, msg, data);
+    }
+
+    public static <T> Response<T> Fail(T data, String msg) {
+        return new Response<>(400, msg, data);
+    }
 
 }

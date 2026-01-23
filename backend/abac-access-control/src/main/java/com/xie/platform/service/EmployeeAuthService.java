@@ -1,8 +1,9 @@
-package com.xie.platform.service.impl;
+package com.xie.platform.service;
 
 import com.xie.platform.service.result.LoginResult;
 
-public class EmployeeAuthService {
+public interface EmployeeAuthService {
+
     /**
      * 员工登录认证
      *
@@ -13,5 +14,5 @@ public class EmployeeAuthService {
 
     // TODO 继续完善登录功能
 
-    // LoginResult login(String employeeName, String rawPassword);
+    LoginResult login(String employeeName, String rawPassword);
 }
