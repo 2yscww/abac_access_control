@@ -1,5 +1,6 @@
 package com.xie.platform.service;
 
+import com.xie.platform.dto.CreateEmployeeDTO;
 import com.xie.platform.service.result.LoginResult;
 
 public interface EmployeeAuthService {
@@ -16,10 +17,11 @@ public interface EmployeeAuthService {
 
     LoginResult login(String employeeName, String rawPassword);
 
-    /**
-    *    强制修改密码
-    */
-    void changePassword(Long employeeId, String oldPassword, String newPassword);
 
+
+    /**
+     * 强制修改密码
+     */
+    void changePassword(Long employeeId, String oldPassword, String newPassword);
 
 }

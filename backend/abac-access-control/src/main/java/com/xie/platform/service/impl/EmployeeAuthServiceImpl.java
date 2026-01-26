@@ -1,5 +1,6 @@
 package com.xie.platform.service.impl;
 
+import com.xie.platform.dto.CreateEmployeeDTO;
 import com.xie.platform.mapper.EmployeesMapper;
 import com.xie.platform.model.Employees;
 import com.xie.platform.model.enumValue.EmployeeStatus;
@@ -9,6 +10,7 @@ import com.xie.platform.service.result.LoginResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class EmployeeAuthServiceImpl implements EmployeeAuthService {
@@ -27,7 +29,7 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         Employees employee = employeesMapper.selectByEmployeeName(employeeName);
 
         // ? 之后需要把返回的信息简化
-        
+
         if (employee == null) {
             result.setSuccess(false);
             result.setMessage("员工不存在");
@@ -60,23 +62,40 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         // TODO 完善强制修改密码的功能
         Employees employee = employeesMapper.selectByEmployeeId(employeeId);
 
-    if (employee == null) {
-        throw new RuntimeException("员工不存在");
+        if (employee == null) {
+            throw new RuntimeException("员工不存在");
+        }
+
+        // 校验旧密码
+        if (!passwordEncoder.matches(oldPassword, employee.getPassword())) {
+            throw new RuntimeException("原密码错误");
+        }
+
+        // 加密新密码
+        String encodedNewPassword = passwordEncoder.encode(newPassword);
+
+        // 更新密码 + 关闭强制改密标志
+        employeesMapper.updatePassword(
+                employeeId,
+                encodedNewPassword);
+
     }
 
-    // 校验旧密码
-    if (!passwordEncoder.matches(oldPassword, employee.getPassword())) {
-        throw new RuntimeException("原密码错误");
-    }
+    // TODO 现在的当务之急是开发一个创建员工的接口出来,然后再回头做强制修改密码的流程
+    @Transactional
+    public void createEmployee(CreateEmployeeDTO dto) {
+        // 1. 唯一性校验
+        Employees exist = employeesMapper.selectByEmployeeName(dto.getEmployeeName());
+        if (exist != null) {
+            throw new BizException("员工已存在");
+        }
 
-    // 加密新密码
-    String encodedNewPassword = passwordEncoder.encode(newPassword);
+        // 2. 生成初始密码
+        String defaultPwd = "ABACtest";
+        String encodedPwd = passwordEncoder.encode(defaultPwd);
 
-    // 更新密码 + 关闭强制改密标志
-    employeesMapper.updatePassword(
-        employeeId,
-        encodedNewPassword
-    );
+
         
     }
+
 }

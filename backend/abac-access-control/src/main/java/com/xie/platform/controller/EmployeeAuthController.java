@@ -2,6 +2,7 @@ package com.xie.platform.controller;
 
 import com.xie.platform.common.Response;
 import com.xie.platform.dto.ChangePasswdDTO;
+import com.xie.platform.dto.CreateEmployeeDTO;
 import com.xie.platform.dto.EmployeeLoginDTO;
 import com.xie.platform.service.EmployeeAuthService;
 import com.xie.platform.service.result.LoginResult;
@@ -10,9 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-
 
 @RestController
 @RequestMapping("/api/employee")
@@ -76,4 +74,18 @@ public class EmployeeAuthController {
                 }
 
         }
+
+        @PostMapping("/create")
+        public Response<Object> createEmployee(@RequestBody CreateEmployeeDTO dto) {
+                // TODO: 完善创建员工功能
+
+                // ? 校验dto内容
+
+
+                employeeAuthService.createEmployee(dto);
+
+                return Response.Success(null, null);
+
+        }
+
 }
