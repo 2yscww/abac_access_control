@@ -15,7 +15,7 @@ public interface EmployeesMapper {
     /**
      * 根据员工 ID 查询员工（后面 ABAC 会用）
      */
-    Employees selectById(@Param("employeeId") Long employeeId);
+    Employees selectByEmployeeId(@Param("employeeId") Long employeeId);
 
     /**
      * 更新密码 + 清除首次登录标记

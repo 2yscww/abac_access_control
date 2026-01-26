@@ -26,6 +26,8 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
         Employees employee = employeesMapper.selectByEmployeeName(employeeName);
 
+        // ? 之后需要把返回的信息简化
+        
         if (employee == null) {
             result.setSuccess(false);
             result.setMessage("员工不存在");
@@ -51,5 +53,30 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         result.setMessage("登录成功");
 
         return result;
+    }
+
+    @Override
+    public void changePassword(Long employeeId, String oldPassword, String newPassword) {
+        // TODO 完善强制修改密码的功能
+        Employees employee = employeesMapper.selectByEmployeeId(employeeId);
+
+    if (employee == null) {
+        throw new RuntimeException("员工不存在");
+    }
+
+    // 校验旧密码
+    if (!passwordEncoder.matches(oldPassword, employee.getPassword())) {
+        throw new RuntimeException("原密码错误");
+    }
+
+    // 加密新密码
+    String encodedNewPassword = passwordEncoder.encode(newPassword);
+
+    // 更新密码 + 关闭强制改密标志
+    employeesMapper.updatePassword(
+        employeeId,
+        encodedNewPassword
+    );
+        
     }
 }

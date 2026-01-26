@@ -15,4 +15,11 @@ public interface EmployeeAuthService {
     // TODO 继续完善登录功能
 
     LoginResult login(String employeeName, String rawPassword);
+
+    /**
+    *    强制修改密码
+    */
+    void changePassword(Long employeeId, String oldPassword, String newPassword);
+
+
 }

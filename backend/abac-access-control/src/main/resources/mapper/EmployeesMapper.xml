@@ -24,8 +24,8 @@
         WHERE employee_name = #{employeeName}
     </select>
 
-    <!-- 根据 ID 查询 -->
-    <select id="selectById" resultType="com.xie.platform.model.Employees">
+    <!-- ? 根据 ID 查询 -->
+    <select id="selectByEmployeeId" resultType="com.xie.platform.model.Employees">
         SELECT
             employee_id,
             employee_name,
@@ -48,8 +48,8 @@
         UPDATE employees
         SET
             password = #{password},
-            must_change_password = FALSE,
-            updated_at = NOW()
+            must_change_password = FALSE
+            <!-- updated_at = NOW() -->
         WHERE employee_id = #{employeeId}
     </update>
 
