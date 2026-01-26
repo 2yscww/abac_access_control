@@ -37,7 +37,7 @@ CREATE TABLE employees (
     current_projects JSON,
     is_contractor BOOLEAN DEFAULT FALSE,
     status VARCHAR(16) DEFAULT 'ACTIVE', 
-    password VARCHAR(255) NOT NULL DEFAULT 'ABACtest',               
+    password VARCHAR(255) NOT NULL ,              
     must_change_password BOOLEAN DEFAULT TRUE,    
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
