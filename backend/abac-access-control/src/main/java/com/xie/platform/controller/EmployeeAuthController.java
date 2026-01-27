@@ -74,18 +74,11 @@ public class EmployeeAuthController {
                 }
 
         }
-
+        // 创建员工
         @PostMapping("/create")
-        public Response<Object> createEmployee(@RequestBody CreateEmployeeDTO dto) {
-                // TODO: 完善创建员工功能
-
-                // ? 校验dto内容
-
-
+        public Response<Void> createEmployee(@RequestBody CreateEmployeeDTO dto) {
                 employeeAuthService.createEmployee(dto);
-
                 return Response.Success(null, null);
-
         }
 
 }

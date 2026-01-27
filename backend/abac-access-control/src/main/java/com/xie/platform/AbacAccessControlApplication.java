@@ -16,6 +16,6 @@ public class AbacAccessControlApplication {
 
 	}
 
-	// TODO 用户的初始密码是明文存储，但是后端会把密码加密，可能因为如此导致的不匹配，需要继续修改
+
 
 }
