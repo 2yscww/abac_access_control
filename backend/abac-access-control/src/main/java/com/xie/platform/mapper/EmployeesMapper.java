@@ -24,4 +24,9 @@ public interface EmployeesMapper {
             @Param("employeeId") Long employeeId,
             @Param("password") String password
     );
+
+    /**
+     * 新增员工
+     */
+    int insert(Employees employee);
 }

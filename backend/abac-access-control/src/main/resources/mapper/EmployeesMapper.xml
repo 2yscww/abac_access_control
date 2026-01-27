@@ -53,4 +53,29 @@
         WHERE employee_id = #{employeeId}
     </update>
 
+    <!-- 新增员工 -->
+    <insert id="insert" parameterType="com.xie.platform.model.Employees" useGeneratedKeys="true" keyProperty="employeeId">
+        INSERT INTO employees (
+            employee_name,
+            dept_id,
+            branch_id,
+            level,
+            current_projects,
+            is_contractor,
+            status,
+            password,
+            must_change_password
+        ) VALUES (
+            #{employeeName},
+            #{deptId},
+            #{branchId},
+            #{level},
+            #{currentProjects},
+            #{isContractor},
+            #{status},
+            #{password},
+            #{mustChangePassword}
+        )
+    </insert>
+
 </mapper>
