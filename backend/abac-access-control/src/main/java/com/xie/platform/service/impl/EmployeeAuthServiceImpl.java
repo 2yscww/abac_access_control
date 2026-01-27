@@ -65,7 +65,7 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         result.setEmployeeId(employee.getEmployeeId());
         result.setMustChangePassword(Boolean.TRUE.equals(employee.getMustChangePassword()));
         result.setMessage("登录成功");
-
+        // TODO 接入JWT功能，为subject打好基础
         return result;
     }
 
