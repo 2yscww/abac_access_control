@@ -24,4 +24,9 @@ public interface EmployeeAuthService {
      */
     void changePassword(Long employeeId, String oldPassword, String newPassword);
 
+    /**
+     * 创建员工
+     */
+    void createEmployee(CreateEmployeeDTO dto);
+
 }
