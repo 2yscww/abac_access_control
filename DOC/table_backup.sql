@@ -76,6 +76,7 @@ CREATE TABLE projects (
     project_id BIGINT PRIMARY KEY ,
     project_name VARCHAR(128) NOT NULL,
     project_phase INT NOT NULL,
+    security_level INT NOT NULL,
     created_by_employee_id BIGINT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -85,6 +86,7 @@ CREATE TABLE projects (
 -- project_id：项目唯一标识
 -- project_name：项目名称（如 AI手机项目）
 -- * project_phase：项目阶段
+-- * security_level 项目保密等级 (公开、内部、机密、高度机密)
 -- created_by_employee_id：项目创建人（员工ID）
 -- created_at：项目创建时间
 -- updated_at：项目更新时间
