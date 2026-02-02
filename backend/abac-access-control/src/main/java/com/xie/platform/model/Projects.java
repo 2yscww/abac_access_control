@@ -24,6 +24,13 @@ public class Projects {
      */
     private Integer projectPhase;
 
+    /**
+     * 项目保密等级
+     * 对应 SecurityLevel.level
+     * 控制项目“可见性”
+     */
+    private Integer securityLevel;
+
     /** 项目创建人（员工ID） */
     private Long createdByEmployeeId;
 
@@ -33,4 +40,3 @@ public class Projects {
     /** 项目更新时间 */
     private LocalDateTime updatedAt;
 }
-
