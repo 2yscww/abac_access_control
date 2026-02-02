@@ -116,7 +116,7 @@ CREATE TABLE project_assets (
 -- project_id：所属项目ID
 -- asset_name：资源名称
 -- ? asset_type：资源类型(需求文档、设计文档、源代码、测试报告、部署脚本、运维文档)
--- ? asset_stage：资源产生阶段 (立项、需求设计、研发实现、测试验证、上线交付、归档)
+-- ? asset_stage：资源产生阶段 (立项、需求设计、研发实现、测试验证、上线交付、归档) （历史快照，不随项目阶段变化）
 -- ? security_level：资源密级(公开、内部、机密、高度机密)
 -- created_by_employee_id：资源创建人
 -- created_at：创建时间
