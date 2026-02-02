@@ -19,7 +19,6 @@ public class EmployeeAuthController {
         @Autowired
         private EmployeeAuthService employeeAuthService;
 
-        // TODO 完善密码加密功能
         @PostMapping("/login")
         public Response<Object> login(@RequestBody EmployeeLoginDTO dto) {
 
@@ -34,16 +33,15 @@ public class EmployeeAuthController {
                 // 首次登录，强制修改密码
                 if (result.isMustChangePassword()) {
                         return Response.Success(
-                                        Map.of(
-                                                        "employeeId", result.getEmployeeId(),
-                                                        "mustChangePassword", true),
+                                        Map.of("employeeId", result.getEmployeeId(),
+                                                "mustChangePassword", true),
                                         "首次登录，请修改密码");
                 }
 
                 // 正常登录成功
                 return Response.Success(
-                                Map.of(
-                                                "employeeId", result.getEmployeeId()),
+                                Map.of("employeeId", result.getEmployeeId(),
+                                                "token", result.getToken()),
                                 "登录成功");
         }
 
@@ -74,6 +72,7 @@ public class EmployeeAuthController {
                 }
 
         }
+
         // 创建员工
         @PostMapping("/create")
         public Response<Void> createEmployee(@RequestBody CreateEmployeeDTO dto) {

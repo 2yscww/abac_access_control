@@ -4,7 +4,7 @@ import lombok.Data;
 
 @Data
 public class LoginResult {
-     /**
+    /**
      * 是否登录成功
      */
     private boolean success;
@@ -23,4 +23,9 @@ public class LoginResult {
      * 失败或提示信息
      */
     private String message;
+
+    /***
+     * jwt信息
+     */
+    private String token;
 }

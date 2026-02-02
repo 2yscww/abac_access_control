@@ -18,6 +18,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.xie.platform.utils.JwtUtil;
+import com.xie.platform.access.subject.Subject;
+
 @Service
 public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
@@ -32,6 +35,9 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtUtil jwtUtil;
 
     @Override
     public LoginResult login(String employeeName, String rawPassword) {
@@ -65,7 +71,28 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         result.setEmployeeId(employee.getEmployeeId());
         result.setMustChangePassword(Boolean.TRUE.equals(employee.getMustChangePassword()));
         result.setMessage("登录成功");
+
         // TODO 接入JWT功能，为subject打好基础
+
+        // 首次登录：不发 token
+        if (Boolean.TRUE.equals(employee.getMustChangePassword())) {
+            return result;
+        }
+
+        // 构造 ABAC Subject
+        Subject subject = new Subject(
+                employee.getEmployeeId(),
+                employee.getDeptId(),
+                employee.getBranchId(),
+                employee.getLevel(),
+                employee.getIsContractor());
+
+        // ? 生成 JWT
+        String token = jwtUtil.generateToken(subject);
+
+        //  塞进结果
+        result.setToken(token);
+
         return result;
     }
 
