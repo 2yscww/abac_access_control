@@ -100,10 +100,10 @@ CREATE TABLE project_assets (
     asset_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     project_id BIGINT NOT NULL,
     asset_name VARCHAR(255) NOT NULL,
-    assets_type VARCHAR(32) NOT NULL,
-    assets_stage VARCHAR(32) NOT NULL,
-    security_level VARCHAR(16) NOT NULL,
-    created_by_employee_id VARCHAR(64),
+    assets_type INT NOT NULL,
+    assets_stage INT NOT NULL,
+    security_level INT NOT NULL,
+    created_by_employee_id BIGINT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_assets_project
     FOREIGN KEY (project_id)

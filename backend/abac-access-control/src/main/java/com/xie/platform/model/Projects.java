@@ -1,5 +1,8 @@
 package com.xie.platform.model;
 
+import com.xie.platform.model.enumValue.ProjectPhase;
+import com.xie.platform.model.enumValue.SecurityLevel;
+
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -19,17 +22,17 @@ public class Projects {
 
     /**
      * 项目阶段
-     * 对应 ProjectPhaseEnum.code
+     * 对应 ProjectPhase 枚举
      * 作为 ABAC 决策中的 Resource Attribute
      */
-    private Integer projectPhase;
+    private ProjectPhase projectPhase;
 
     /**
      * 项目保密等级
-     * 对应 SecurityLevel.level
-     * 控制项目“可见性”
+     * 对应 SecurityLevel 枚举
+     * 控制项目"可见性"
      */
-    private Integer securityLevel;
+    private SecurityLevel securityLevel;
 
     /** 项目创建人（员工ID） */
     private Long createdByEmployeeId;
