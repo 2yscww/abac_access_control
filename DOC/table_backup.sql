@@ -105,6 +105,9 @@ CREATE TABLE project_assets (
     security_level INT NOT NULL,
     created_by_employee_id BIGINT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    file_path VARCHAR(512),
+    file_size BIGINT,
+    description TEXT,
     CONSTRAINT fk_assets_project
     FOREIGN KEY (project_id)
     REFERENCES projects(project_id)
@@ -122,6 +125,9 @@ CREATE TABLE project_assets (
 -- ? security_level：资源密级(公开、内部、机密、高度机密)
 -- created_by_employee_id：资源创建人
 -- created_at：创建时间
+-- file_path : 文件路径
+-- file_size : 文件大小 字节
+-- description : 资产描述
 
 
 
