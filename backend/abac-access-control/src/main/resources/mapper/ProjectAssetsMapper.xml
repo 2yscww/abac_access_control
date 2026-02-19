@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.xie.platform.mapper.ProjectAssetsMapper">
+
+    <!-- 插入资产 -->
+    <insert id="insert" parameterType="com.xie.platform.model.ProjectAssets"
+            useGeneratedKeys="true" keyProperty="assetId">
+        INSERT INTO project_assets (
+            project_id,
+            asset_name,
+            assets_type,
+            assets_stage,
+            security_level,
+            created_by_employee_id,
+            file_path,
+            file_size,
+            description
+        ) VALUES (
+            #{projectId},
+            #{assetName},
+            #{assetsType},
+            #{assetsStage},
+            #{securityLevel},
+            #{createdByEmployeeId},
+            #{filePath},
+            #{fileSize},
+            #{description}
+        )
+    </insert>
+
+    <!-- 根据资产ID查询 -->
+    <select id="selectById" resultType="com.xie.platform.model.ProjectAssets">
+        SELECT
+            asset_id,
+            project_id,
+            asset_name,
+            assets_type,
+            assets_stage,
+            security_level,
+            created_by_employee_id,
+            created_at,
+            file_path,
+            file_size,
+            description
+        FROM project_assets
+        WHERE asset_id = #{assetId}
+    </select>
+
+    <!-- 根据项目ID查询资产列表 -->
+    <select id="selectByProjectId" resultType="com.xie.platform.model.ProjectAssets">
+        SELECT
+            asset_id,
+            project_id,
+            asset_name,
+            assets_type,
+            assets_stage,
+            security_level,
+            created_by_employee_id,
+            created_at,
+            file_path,
+            file_size,
+            description
+        FROM project_assets
+        WHERE project_id = #{projectId}
+        ORDER BY created_at DESC
+    </select>
+
+    <!-- 条件查询资产列表 -->
+    <select id="selectByCondition" resultType="com.xie.platform.model.ProjectAssets">
+        SELECT
+            asset_id,
+            project_id,
+            asset_name,
+            assets_type,
+            assets_stage,
+            security_level,
+            created_by_employee_id,
+            created_at,
+            file_path,
+            file_size,
+            description
+        FROM project_assets
+        <where>
+            <if test="projectId != null">
+                AND project_id = #{projectId}
+            </if>
+            <if test="assetName != null and assetName != ''">
+                AND asset_name LIKE CONCAT('%', #{assetName}, '%')
+            </if>
+            <if test="assetsType != null">
+                AND assets_type = #{assetsType}
+            </if>
+            <if test="assetsStage != null">
+                AND assets_stage = #{assetsStage}
+            </if>
+            <if test="securityLevel != null">
+                AND security_level = #{securityLevel}
+            </if>
+            <if test="createdByEmployeeId != null">
+                AND created_by_employee_id = #{createdByEmployeeId}
+            </if>
+        </where>
+        ORDER BY created_at DESC
+        <if test="pageSize != null and pageNum != null">
+            LIMIT #{pageSize} OFFSET #{pageNum}
+        </if>
+    </select>
+
+    <!-- 统计符合条件的资产数量 -->
+    <select id="countByCondition" resultType="int">
+        SELECT COUNT(*)
+        FROM project_assets
+        <where>
+            <if test="projectId != null">
+                AND project_id = #{projectId}
+            </if>
+            <if test="assetName != null and assetName != ''">
+                AND asset_name LIKE CONCAT('%', #{assetName}, '%')
+            </if>
+            <if test="assetsType != null">
+                AND assets_type = #{assetsType}
+            </if>
+            <if test="assetsStage != null">
+                AND assets_stage = #{assetsStage}
+            </if>
+            <if test="securityLevel != null">
+                AND security_level = #{securityLevel}
+            </if>
+            <if test="createdByEmployeeId != null">
+                AND created_by_employee_id = #{createdByEmployeeId}
+            </if>
+        </where>
+    </select>
+
+    <!-- 删除资产 -->
+    <delete id="deleteById">
+        DELETE FROM project_assets
+        WHERE asset_id = #{assetId}
+    </delete>
+
+    <!-- 根据项目ID删除所有资产 -->
+    <delete id="deleteByProjectId">
+        DELETE FROM project_assets
+        WHERE project_id = #{projectId}
+    </delete>
+
+</mapper>

@@ -42,4 +42,24 @@ public class ProjectAssets {
 
     /** 创建时间 */
     private LocalDateTime createdAt;
+
+    /**
+     * 文件路径或Git地址
+     * - 文档类资产：本地路径（如 /uploads/projects/1738051200000/doc.pdf）
+     * - 代码类资产：Git URL（如 https://github.com/company/repo.git）
+     * - 云存储：OSS URL（如 https://oss.aliyun.com/bucket/file.pdf）
+     */
+    private String filePath;
+
+    /**
+     * 文件大小（字节）
+     * - 文档类资产：实际文件大小
+     * - 代码类资产：NULL
+     */
+    private Long fileSize;
+
+    /**
+     * 资产描述
+     */
+    private String description;
 }
