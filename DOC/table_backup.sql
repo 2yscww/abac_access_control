@@ -30,6 +30,7 @@ CREATE TABLE branches (
 -- ! 员工表
 CREATE TABLE employees (
     employee_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    employee_code VARCHAR(32) NOT NULL UNIQUE,
     employee_name VARCHAR(64) NOT NULL,
     dept_id BIGINT NOT NULL,
     branch_id BIGINT NOT NULL,
@@ -55,6 +56,7 @@ CREATE TABLE employees (
 
 -- * employees：员工表，对应 ABAC 中的 Subject（主体）
 -- employee_id：员工唯一标识
+-- emplpyee _code: 员工工号
 -- username：员工姓名 / 登录名
 -- dept：所属部门（如 R&D、QA、Legal）
 -- branch：所属分公司
