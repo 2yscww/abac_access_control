@@ -4,6 +4,6 @@ import lombok.Data;
 
 @Data
 public class EmployeeLoginDTO {
-    private String employeeName;
+    private String employeeCode;  // 工号（如 1001）
     private String password;
 }

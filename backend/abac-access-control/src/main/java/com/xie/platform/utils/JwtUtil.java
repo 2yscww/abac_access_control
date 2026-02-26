@@ -56,4 +56,29 @@ public class JwtUtil {
                 .parseClaimsJws(token)
                 .getBody();
     }
+
+    /**
+     * 生成临时 token（首次登录强制改密用，10 分钟有效）
+     */
+    public String generateTempToken(Long employeeId) {
+        return Jwts.builder()
+                .setSubject(employeeId.toString())
+                .claim("scope", "CHANGE_PASSWORD")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 10 * 60 * 1000L))
+                .signWith(getKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    /**
+     * 解析并校验临时 token，返回 employeeId
+     * scope 不匹配或 token 非法/过期时抛异常
+     */
+    public Long parseAndValidateTempToken(String token) {
+        Claims claims = parseToken(token);
+        if (!"CHANGE_PASSWORD".equals(claims.get("scope", String.class))) {
+            throw new IllegalArgumentException("无效的临时凭证");
+        }
+        return Long.parseLong(claims.getSubject());
+    }
 }

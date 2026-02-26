@@ -13,6 +13,11 @@ public interface EmployeesMapper {
     Employees selectByEmployeeName(@Param("employeeName") String employeeName);
 
     /**
+     * 根据工号查询员工
+     */
+    Employees selectByEmployeeCode(@Param("employeeCode") String employeeCode);
+
+    /**
      * 根据员工 ID 查询员工（后面 ABAC 会用）
      */
     Employees selectByEmployeeId(@Param("employeeId") Long employeeId);
@@ -29,4 +34,9 @@ public interface EmployeesMapper {
      * 新增员工
      */
     int insert(Employees employee);
+
+    /**
+     * 回填工号
+     */
+    int updateEmployeeCode(@Param("employeeId") Long employeeId, @Param("employeeCode") String employeeCode);
 }

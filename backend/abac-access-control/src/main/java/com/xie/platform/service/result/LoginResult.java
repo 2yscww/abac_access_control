@@ -28,4 +28,9 @@ public class LoginResult {
      * jwt信息
      */
     private String token;
+
+    /**
+     * 临时 token（仅 mustChangePassword=true 时有值，用于认证改密请求）
+     */
+    private String tempToken;
 }

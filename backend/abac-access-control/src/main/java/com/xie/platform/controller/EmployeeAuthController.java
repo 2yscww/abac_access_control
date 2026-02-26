@@ -23,7 +23,7 @@ public class EmployeeAuthController {
         public Response<Object> login(@RequestBody EmployeeLoginDTO dto) {
 
                 LoginResult result = employeeAuthService.login(
-                                dto.getEmployeeName(),
+                                dto.getEmployeeCode(),
                                 dto.getPassword());
 
                 if (!result.isSuccess()) {
@@ -33,7 +33,7 @@ public class EmployeeAuthController {
                 // 首次登录，强制修改密码
                 if (result.isMustChangePassword()) {
                         return Response.Success(
-                                        Map.of("employeeId", result.getEmployeeId(),
+                                        Map.of("tempToken", result.getTempToken(),
                                                 "mustChangePassword", true),
                                         "首次登录，请修改密码");
                 }
@@ -46,12 +46,15 @@ public class EmployeeAuthController {
         }
 
         @PostMapping("/change-password")
-        public Response<Object> changePassword(@RequestBody ChangePasswdDTO dto) {
+        public Response<Object> changePassword(
+                        @RequestHeader("Authorization") String authHeader,
+                        @RequestBody ChangePasswdDTO dto) {
                 try {
-                        // 校验 DTO 参数
-                        if (dto == null || dto.getEmployeeId() == null) {
-                                return Response.Fail(null, "员工ID不能为空");
+                        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                                return Response.Fail(null, "临时凭证不能为空");
                         }
+                        String tempToken = authHeader.substring(7);
+
                         if (dto.getOldPassword() == null || dto.getOldPassword().isEmpty()) {
                                 return Response.Fail(null, "原密码不能为空");
                         }
@@ -59,18 +62,17 @@ public class EmployeeAuthController {
                                 return Response.Fail(null, "新密码不能为空");
                         }
 
-                        employeeAuthService.changePassword(
-                                        dto.getEmployeeId(),
+                        String token = employeeAuthService.changePassword(
+                                        tempToken,
                                         dto.getOldPassword(),
                                         dto.getNewPassword());
-                        return Response.Success(null, "密码修改成功");
+                        return Response.Success(Map.of("token", token), "密码修改成功");
                 } catch (RuntimeException e) {
                         String errorMsg = e.getMessage() != null ? e.getMessage() : "修改密码失败";
                         return Response.Fail(null, errorMsg);
                 } catch (Exception e) {
                         return Response.Fail(null, "系统异常：" + e.getMessage());
                 }
-
         }
 
         // 创建员工

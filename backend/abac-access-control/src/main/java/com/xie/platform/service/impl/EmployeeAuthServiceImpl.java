@@ -40,11 +40,11 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
     private JwtUtil jwtUtil;
 
     @Override
-    public LoginResult login(String employeeName, String rawPassword) {
+    public LoginResult login(String employeeCode, String rawPassword) {
 
         LoginResult result = new LoginResult();
 
-        Employees employee = employeesMapper.selectByEmployeeName(employeeName);
+        Employees employee = employeesMapper.selectByEmployeeCode(employeeCode);
 
         // ? 之后需要把返回的信息简化
 
@@ -72,10 +72,11 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         result.setMustChangePassword(Boolean.TRUE.equals(employee.getMustChangePassword()));
         result.setMessage("登录成功");
 
-        // TODO 接入JWT功能，为subject打好基础
 
-        // 首次登录：不发 token
+
+        // 首次登录：下发临时 token，不发正式 token
         if (Boolean.TRUE.equals(employee.getMustChangePassword())) {
+            result.setTempToken(jwtUtil.generateTempToken(employee.getEmployeeId()));
             return result;
         }
 
@@ -97,9 +98,16 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
     }
 
     @Override
-    public void changePassword(Long employeeId, String oldPassword, String newPassword) {
-        Employees employee = employeesMapper.selectByEmployeeId(employeeId);
+    public String changePassword(String tempToken, String oldPassword, String newPassword) {
+        // 验证临时 token，提取 employeeId（非法/过期/scope 不符均抛异常）
+        Long employeeId;
+        try {
+            employeeId = jwtUtil.parseAndValidateTempToken(tempToken);
+        } catch (Exception e) {
+            throw new BizException("临时凭证无效或已过期，请重新登录");
+        }
 
+        Employees employee = employeesMapper.selectByEmployeeId(employeeId);
         if (employee == null) {
             throw new BizException("员工不存在");
         }
@@ -109,11 +117,17 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
             throw new BizException("原密码错误");
         }
 
-        // 加密新密码
-        String encodedNewPassword = passwordEncoder.encode(newPassword);
+        // 更新密码 + 清除强制改密标志
+        employeesMapper.updatePassword(employeeId, passwordEncoder.encode(newPassword));
 
-        // 更新密码 + 关闭强制改密标志
-        employeesMapper.updatePassword(employeeId, encodedNewPassword);
+        // 生成并返回正式 token
+        Subject subject = new Subject(
+                employee.getEmployeeId(),
+                employee.getDeptId(),
+                employee.getBranchId(),
+                employee.getLevel(),
+                employee.getIsContractor());
+        return jwtUtil.generateToken(subject);
     }
 
     @Override
@@ -132,12 +146,6 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         }
         if (dto.getLevel() == null) {
             throw new BizException("员工职级不能为空");
-        }
-
-        // 1. 员工唯一性校验（employee_name 作为登录名）
-        Employees exist = employeesMapper.selectByEmployeeName(dto.getEmployeeName());
-        if (exist != null) {
-            throw new BizException("员工已存在");
         }
 
         // 2. 校验部门是否存在
@@ -166,6 +174,7 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
         // 6. 构建员工实体
         Employees employee = new Employees();
+        employee.setEmployeeCode("PENDING");  // 临时占位，insert 后回填
         employee.setEmployeeName(dto.getEmployeeName());
         employee.setDeptId(dto.getDeptId());
         employee.setBranchId(dto.getBranchId());
@@ -177,6 +186,10 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
         // 7. 入库
         employeesMapper.insert(employee);
+
+        // 8. 回填工号（employee_id + 1000 偏移，使工号从 1001 开始）
+        String employeeCode = String.valueOf(employee.getEmployeeId() + 1000);
+        employeesMapper.updateEmployeeCode(employee.getEmployeeId(), employeeCode);
     }
 
 }

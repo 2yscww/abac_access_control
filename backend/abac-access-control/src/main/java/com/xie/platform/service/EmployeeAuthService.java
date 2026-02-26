@@ -15,14 +15,19 @@ public interface EmployeeAuthService {
 
     // TODO 继续完善登录功能
 
-    LoginResult login(String employeeName, String rawPassword);
+    LoginResult login(String employeeCode, String rawPassword);
 
 
 
     /**
-     * 强制修改密码
+     * 强制修改密码，返回正式 token
+     *
+     * @param tempToken   首次登录时下发的临时凭证
+     * @param oldPassword 旧密码（初始密码）
+     * @param newPassword 新密码
+     * @return 正式 JWT token
      */
-    void changePassword(Long employeeId, String oldPassword, String newPassword);
+    String changePassword(String tempToken, String oldPassword, String newPassword);
 
     /**
      * 创建员工

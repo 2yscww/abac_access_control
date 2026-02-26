@@ -11,6 +11,7 @@ import lombok.Data;
 public class Employees {
 
     private Long employeeId;
+    private String employeeCode;  // 工号（EMP + employee_id）
     private String employeeName;
 
     private Long deptId;

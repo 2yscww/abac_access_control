@@ -9,6 +9,7 @@
     <select id="selectByEmployeeName" resultType="com.xie.platform.model.Employees">
         SELECT
             employee_id,
+            employee_code,
             employee_name,
             dept_id,
             branch_id,
@@ -22,6 +23,26 @@
             updated_at
         FROM employees
         WHERE employee_name = #{employeeName}
+    </select>
+
+    <!-- 根据工号查询 -->
+    <select id="selectByEmployeeCode" resultType="com.xie.platform.model.Employees">
+        SELECT
+            employee_id,
+            employee_code,
+            employee_name,
+            dept_id,
+            branch_id,
+            level,
+            current_projects,
+            is_contractor,
+            status,
+            password,
+            must_change_password,
+            created_at,
+            updated_at
+        FROM employees
+        WHERE employee_code = #{employeeCode}
     </select>
 
     <!-- ? 根据 ID 查询 -->
@@ -48,14 +69,15 @@
         UPDATE employees
         SET
             password = #{password},
-            must_change_password = FALSE
-            <!-- updated_at = NOW() -->
+            must_change_password = FALSE,
+            updated_at = NOW()
         WHERE employee_id = #{employeeId}
     </update>
 
     <!-- 新增员工 -->
     <insert id="insert" parameterType="com.xie.platform.model.Employees" useGeneratedKeys="true" keyProperty="employeeId">
         INSERT INTO employees (
+            employee_code,
             employee_name,
             dept_id,
             branch_id,
@@ -66,6 +88,7 @@
             password,
             must_change_password
         ) VALUES (
+            #{employeeCode},
             #{employeeName},
             #{deptId},
             #{branchId},
@@ -77,5 +100,12 @@
             #{mustChangePassword}
         )
     </insert>
+
+    <!-- 回填工号 -->
+    <update id="updateEmployeeCode">
+        UPDATE employees
+        SET employee_code = #{employeeCode}
+        WHERE employee_id = #{employeeId}
+    </update>
 
 </mapper>
