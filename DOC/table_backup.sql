@@ -75,7 +75,7 @@ CREATE TABLE employees (
 
 -- ! 项目表
 CREATE TABLE projects (
-    project_id BIGINT PRIMARY KEY ,
+    project_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     project_name VARCHAR(128) NOT NULL,
     project_phase INT NOT NULL,
     security_level INT NOT NULL,

@@ -61,16 +61,11 @@ public class ProjectServiceImpl implements ProjectService {
             }
         }
 
-        // 5. 生成项目ID（如果未提供）
-        Long projectId = dto.getProjectId();
-        if (projectId == null) {
-            // 使用时间戳 + 随机数生成项目ID
-            projectId = System.currentTimeMillis();
-        }
+
 
         // 6. 构建项目实体
         Projects project = new Projects();
-        project.setProjectId(projectId);
+        // ? project.setProjectId(projectId); 业务代码不参与生成项目id
         project.setProjectName(dto.getProjectName());
         project.setProjectPhase(projectPhase);
         project.setSecurityLevel(securityLevel);
@@ -79,7 +74,7 @@ public class ProjectServiceImpl implements ProjectService {
         // 7. 插入数据库
         projectMapper.insert(project);
 
-        return projectId;
+        return project.getProjectId();
     }
 
     @Override
