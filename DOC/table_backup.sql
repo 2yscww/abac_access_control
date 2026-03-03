@@ -2,6 +2,7 @@
 CREATE TABLE departments (
     dept_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     dept_name VARCHAR(64) NOT NULL UNIQUE,
+    dept_type VARCHAR(64) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -9,6 +10,7 @@ CREATE TABLE departments (
 -- departments：部门表
 -- dept_id：部门唯一标识
 -- dept_name：部门名称（如 R&D、QA、Legal）
+-- dept_type: 部门类别
 -- created_at：记录创建时间
 -- updated_at：记录更新时间
 
