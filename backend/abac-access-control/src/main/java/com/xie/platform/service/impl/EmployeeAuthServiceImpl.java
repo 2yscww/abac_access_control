@@ -81,9 +81,11 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         }
 
         // 构造 ABAC Subject
+        Department dept = departmentMapper.selectById(employee.getDeptId());
         Subject subject = new Subject(
                 employee.getEmployeeId(),
                 employee.getDeptId(),
+                dept != null ? dept.getDeptType() : null,
                 employee.getBranchId(),
                 employee.getLevel(),
                 employee.getIsContractor());
@@ -121,9 +123,11 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         employeesMapper.updatePassword(employeeId, passwordEncoder.encode(newPassword));
 
         // 生成并返回正式 token
+        Department dept = departmentMapper.selectById(employee.getDeptId());
         Subject subject = new Subject(
                 employee.getEmployeeId(),
                 employee.getDeptId(),
+                dept != null ? dept.getDeptType() : null,
                 employee.getBranchId(),
                 employee.getLevel(),
                 employee.getIsContractor());
