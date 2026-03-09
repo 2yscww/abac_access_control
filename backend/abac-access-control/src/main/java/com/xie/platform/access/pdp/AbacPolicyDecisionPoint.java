@@ -30,9 +30,10 @@ public class AbacPolicyDecisionPoint implements PolicyDecisionPoint {
     /**
      * Spring 自动收集所有实现了 Policy 接口的 Bean
      * 每个 Policy 通过 getLayer() 声明自己属于哪一层
+     * package-private 以便测试类可以手动注入
      */
     @Autowired
-    private List<Policy> allPolicies;
+    List<Policy> allPolicies;
 
     /** 按层分组后的规则集合，PostConstruct 时初始化一次 */
     private Map<PolicyLayer, List<Policy>> policyMap;

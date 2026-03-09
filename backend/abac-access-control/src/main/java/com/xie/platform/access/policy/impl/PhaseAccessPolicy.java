@@ -1,7 +1,10 @@
-package com.xie.platform.access.policy;
+package com.xie.platform.access.policy.impl;
 
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.environment.Environment;
+import com.xie.platform.access.policy.Policy;
+import com.xie.platform.access.policy.PolicyLayer;
+import com.xie.platform.access.policy.PolicyResult;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.access.subject.Subject;
 import com.xie.platform.model.enumValue.DeptType;

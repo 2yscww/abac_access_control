@@ -1,11 +1,18 @@
-package com.xie.platform.access.policy;
+package com.xie.platform.access.policy.impl;
 
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.environment.Environment;
+import com.xie.platform.access.policy.Policy;
+import com.xie.platform.access.policy.PolicyLayer;
+import com.xie.platform.access.policy.PolicyResult;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.access.subject.Subject;
 import com.xie.platform.model.enumValue.SecurityLevel;
 import org.springframework.stereotype.Component;
+
+
+// TODO 还是要继续修改策略的设置，需要执行 need to know 
+// ? 就算是高级负责人，也不一定是负责研发工作，不能因为他级别高，就能随意查看所有源代码，反之，研发工程师同理
 
 /**
  * 策略二：资源密级与员工职级匹配（安全策略层）
