@@ -50,8 +50,17 @@ public class ProjectController {
      * GET /api/project/{id}
      */
     @GetMapping("/{id}")
-    public Response<Projects> getProject(@PathVariable("id") Long projectId) {
-        Projects project = projectService.getProjectById(projectId);
+    public Response<Projects> getProject(
+            @PathVariable("id") Long projectId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+        // 从 JWT 中解析 employeeId
+        Long employeeId = extractEmployeeIdFromToken(authHeader);
+        if (employeeId == null) {
+            return Response.Fail(null, "未登录或token无效");
+        }
+
+        Projects project = projectService.getProjectById(projectId, employeeId);
         return Response.Success(project, null);
     }
 
@@ -70,8 +79,17 @@ public class ProjectController {
      * PUT /api/project/phase
      */
     @PutMapping("/phase")
-    public Response<Void> updateProjectPhase(@RequestBody UpdateProjectPhaseDTO dto) {
-        projectService.updateProjectPhase(dto);
+    public Response<Void> updateProjectPhase(
+            @RequestBody UpdateProjectPhaseDTO dto,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+        // 从 JWT 中解析 employeeId
+        Long employeeId = extractEmployeeIdFromToken(authHeader);
+        if (employeeId == null) {
+            return Response.Fail(null, "未登录或token无效");
+        }
+
+        projectService.updateProjectPhase(dto, employeeId);
         return Response.Success(null, "项目阶段更新成功");
     }
 
@@ -80,8 +98,17 @@ public class ProjectController {
      * DELETE /api/project/{id}
      */
     @DeleteMapping("/{id}")
-    public Response<Void> deleteProject(@PathVariable("id") Long projectId) {
-        projectService.deleteProject(projectId);
+    public Response<Void> deleteProject(
+            @PathVariable("id") Long projectId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+        // 从 JWT 中解析 employeeId
+        Long employeeId = extractEmployeeIdFromToken(authHeader);
+        if (employeeId == null) {
+            return Response.Fail(null, "未登录或token无效");
+        }
+
+        projectService.deleteProject(projectId, employeeId);
         return Response.Success(null, "项目删除成功");
     }
 

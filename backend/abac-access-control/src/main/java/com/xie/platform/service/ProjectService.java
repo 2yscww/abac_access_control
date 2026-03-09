@@ -23,9 +23,10 @@ public interface ProjectService {
      * 根据ID查询项目详情
      *
      * @param projectId 项目ID
+     * @param employeeId 请求员工ID（用于权限检查）
      * @return 项目详情
      */
-    Projects getProjectById(Long projectId);
+    Projects getProjectById(Long projectId, Long employeeId);
 
     /**
      * 条件查询项目列表（分页）
@@ -39,13 +40,15 @@ public interface ProjectService {
      * 更新项目阶段
      *
      * @param dto 更新信息
+     * @param employeeId 请求员工ID（用于权限检查）
      */
-    void updateProjectPhase(UpdateProjectPhaseDTO dto);
+    void updateProjectPhase(UpdateProjectPhaseDTO dto, Long employeeId);
 
     /**
      * 删除项目
      *
      * @param projectId 项目ID
+     * @param employeeId 请求员工ID（用于权限检查）
      */
-    void deleteProject(Long projectId);
+    void deleteProject(Long projectId, Long employeeId);
 }

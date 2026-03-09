@@ -22,9 +22,10 @@ public interface ProjectAssetsService {
      * 根据ID查询资产详情
      *
      * @param assetId 资产ID
+     * @param employeeId 请求员工ID（用于权限检查）
      * @return 资产详情
      */
-    ProjectAssets getAssetById(Long assetId);
+    ProjectAssets getAssetById(Long assetId, Long employeeId);
 
     /**
      * 根据项目ID查询资产列表
@@ -46,6 +47,7 @@ public interface ProjectAssetsService {
      * 删除资产
      *
      * @param assetId 资产ID
+     * @param employeeId 请求员工ID（用于权限检查）
      */
-    void deleteAsset(Long assetId);
+    void deleteAsset(Long assetId, Long employeeId);
 }

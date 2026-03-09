@@ -50,8 +50,17 @@ public class ProjectAssetsController {
      * GET /api/asset/{id}
      */
     @GetMapping("/{id}")
-    public Response<ProjectAssets> getAsset(@PathVariable("id") Long assetId) {
-        ProjectAssets asset = projectAssetsService.getAssetById(assetId);
+    public Response<ProjectAssets> getAsset(
+            @PathVariable("id") Long assetId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+        // 从 JWT 中解析 employeeId
+        Long employeeId = extractEmployeeIdFromToken(authHeader);
+        if (employeeId == null) {
+            return Response.Fail(null, "未登录或token无效");
+        }
+
+        ProjectAssets asset = projectAssetsService.getAssetById(assetId, employeeId);
         return Response.Success(asset, null);
     }
 
@@ -80,8 +89,17 @@ public class ProjectAssetsController {
      * DELETE /api/asset/{id}
      */
     @DeleteMapping("/{id}")
-    public Response<Void> deleteAsset(@PathVariable("id") Long assetId) {
-        projectAssetsService.deleteAsset(assetId);
+    public Response<Void> deleteAsset(
+            @PathVariable("id") Long assetId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+        // 从 JWT 中解析 employeeId
+        Long employeeId = extractEmployeeIdFromToken(authHeader);
+        if (employeeId == null) {
+            return Response.Fail(null, "未登录或token无效");
+        }
+
+        projectAssetsService.deleteAsset(assetId, employeeId);
         return Response.Success(null, "资产删除成功");
     }
 

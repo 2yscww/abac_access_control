@@ -1,5 +1,7 @@
 package com.xie.platform.service.impl;
 
+import com.xie.platform.access.action.Action;
+import com.xie.platform.access.pep.PolicyEnforcementPoint;
 import com.xie.platform.dto.CreateProjectDTO;
 import com.xie.platform.dto.ProjectQueryDTO;
 import com.xie.platform.dto.UpdateProjectPhaseDTO;
@@ -22,6 +24,9 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Autowired
     private ProjectMapper projectMapper;
+
+    @Autowired
+    private PolicyEnforcementPoint pep;
 
     @Override
     @Transactional
@@ -78,10 +83,13 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
-    public Projects getProjectById(Long projectId) {
+    public Projects getProjectById(Long projectId, Long employeeId) {
         if (projectId == null) {
             throw new BizException("项目ID不能为空");
         }
+
+        // ABAC 权限检查：检查员工是否有权读取该项目
+        pep.checkProjectAccess(employeeId, projectId, Action.READ);
 
         Projects project = projectMapper.selectById(projectId);
         if (project == null) {
@@ -122,7 +130,7 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     @Transactional
-    public void updateProjectPhase(UpdateProjectPhaseDTO dto) {
+    public void updateProjectPhase(UpdateProjectPhaseDTO dto, Long employeeId) {
 
         // 1. 参数校验
         if (dto.getProjectId() == null) {
@@ -132,13 +140,16 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BizException("新阶段不能为空");
         }
 
-        // 2. 校验项目是否存在
+        // 2. ABAC 权限检查：检查员工是否有权推进项目阶段
+        pep.checkProjectAccess(employeeId, dto.getProjectId(), Action.ADVANCE_PHASE);
+
+        // 3. 校验项目是否存在
         Projects project = projectMapper.selectById(dto.getProjectId());
         if (project == null) {
             throw new BizException("项目不存在");
         }
 
-        // 3. 校验新阶段合法性
+        // 4. 校验新阶段合法性
         ProjectPhase newPhase;
         try {
             newPhase = ProjectPhase.fromCode(dto.getNewPhase());
@@ -146,22 +157,25 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BizException("非法的项目阶段");
         }
 
-        // 4. 阶段变更业务规则校验（可选）
+        // 5. 阶段变更业务规则校验（可选）
         ProjectPhase currentPhase = project.getProjectPhase();
         if (currentPhase == ProjectPhase.ARCHIVED) {
             throw new BizException("已归档的项目不能修改阶段");
         }
 
-        // 5. 更新阶段
+        // 6. 更新阶段
         projectMapper.updatePhase(dto.getProjectId(), dto.getNewPhase());
     }
 
     @Override
     @Transactional
-    public void deleteProject(Long projectId) {
+    public void deleteProject(Long projectId, Long employeeId) {
         if (projectId == null) {
             throw new BizException("项目ID不能为空");
         }
+
+        // ABAC 权限检查：检查员工是否有权删除该项目
+        pep.checkProjectAccess(employeeId, projectId, Action.DELETE);
 
         Projects project = projectMapper.selectById(projectId);
         if (project == null) {

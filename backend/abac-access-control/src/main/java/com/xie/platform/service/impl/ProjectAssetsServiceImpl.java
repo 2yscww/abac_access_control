@@ -1,5 +1,7 @@
 package com.xie.platform.service.impl;
 
+import com.xie.platform.access.action.Action;
+import com.xie.platform.access.pep.PolicyEnforcementPoint;
 import com.xie.platform.dto.AssetQueryDTO;
 import com.xie.platform.dto.CreateAssetDTO;
 import com.xie.platform.exception.BizException;
@@ -27,6 +29,9 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
 
     @Autowired
     private ProjectMapper projectMapper;
+
+    @Autowired
+    private PolicyEnforcementPoint pep;
 
     @Override
     @Transactional
@@ -96,10 +101,13 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
     }
 
     @Override
-    public ProjectAssets getAssetById(Long assetId) {
+    public ProjectAssets getAssetById(Long assetId, Long employeeId) {
         if (assetId == null) {
             throw new BizException("资产ID不能为空");
         }
+
+        // ABAC 权限检查：检查员工是否有权读取该资产
+        pep.checkAssetAccess(employeeId, assetId, Action.READ);
 
         ProjectAssets asset = projectAssetsMapper.selectById(assetId);
         if (asset == null) {
@@ -155,10 +163,13 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
 
     @Override
     @Transactional
-    public void deleteAsset(Long assetId) {
+    public void deleteAsset(Long assetId, Long employeeId) {
         if (assetId == null) {
             throw new BizException("资产ID不能为空");
         }
+
+        // ABAC 权限检查：检查员工是否有权删除该资产
+        pep.checkAssetAccess(employeeId, assetId, Action.DELETE);
 
         ProjectAssets asset = projectAssetsMapper.selectById(assetId);
         if (asset == null) {
