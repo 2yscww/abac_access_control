@@ -28,4 +28,16 @@ public class Response<T> {
         return new Response<>(400, msg, data);
     }
 
+    public static <T> Response<T> Unauthorized(T data, String msg) {
+        return new Response<>(401, msg, data);
+    }
+
+    public static <T> Response<T> Forbidden(T data, String msg) {
+        return new Response<>(403, msg, data);
+    }
+
+    public static <T> Response<T> Error(T data, String msg) {
+        return new Response<>(500, msg, data);
+    }
+
 }

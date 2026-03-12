@@ -2,6 +2,8 @@ package com.xie.platform.service.impl;
 
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.pep.PolicyEnforcementPoint;
+import com.xie.platform.access.resource.Resource;
+import com.xie.platform.access.resource.ResourceType;
 import com.xie.platform.dto.CreateProjectDTO;
 import com.xie.platform.dto.ProjectQueryDTO;
 import com.xie.platform.dto.UpdateProjectPhaseDTO;
@@ -31,54 +33,54 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     @Transactional
     public Long createProject(CreateProjectDTO dto, Long creatorEmployeeId) {
-
-        // 1. 参数校验
         if (dto.getProjectName() == null || dto.getProjectName().isBlank()) {
             throw new BizException("项目名称不能为空");
         }
         if (dto.getSecurityLevel() == null) {
-            throw new BizException("项目保密等级不能为空");
+            throw new BizException("项目密级不能为空");
         }
 
-        // 2. 项目名称唯一性校验
         Projects existProject = projectMapper.selectByName(dto.getProjectName());
         if (existProject != null) {
             throw new BizException("项目名称已存在");
         }
 
-        // 3. 校验保密等级合法性
         SecurityLevel securityLevel;
         try {
             securityLevel = SecurityLevel.fromLevel(dto.getSecurityLevel());
-        } catch (IllegalArgumentException e) {
-            throw new BizException("非法的保密等级");
+        } catch (IllegalArgumentException exception) {
+            throw new BizException("非法的项目密级");
         }
 
-        // 4. 校验项目阶段合法性（默认为立项阶段）
         ProjectPhase projectPhase;
         if (dto.getProjectPhase() == null) {
-            projectPhase = ProjectPhase.INIT; // 默认立项阶段
+            projectPhase = ProjectPhase.INIT;
         } else {
             try {
                 projectPhase = ProjectPhase.fromCode(dto.getProjectPhase());
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException exception) {
                 throw new BizException("非法的项目阶段");
             }
         }
 
+        pep.checkAccess(
+                creatorEmployeeId,
+                Resource.builder()
+                        .type(ResourceType.PROJECT)
+                        .projectPhase(projectPhase)
+                        .securityLevel(securityLevel)
+                        .creatorId(creatorEmployeeId)
+                        .build(),
+                Action.WRITE
+        );
 
-
-        // 6. 构建项目实体
         Projects project = new Projects();
-        // ? project.setProjectId(projectId); 业务代码不参与生成项目id
         project.setProjectName(dto.getProjectName());
         project.setProjectPhase(projectPhase);
         project.setSecurityLevel(securityLevel);
         project.setCreatedByEmployeeId(creatorEmployeeId);
 
-        // 7. 插入数据库
         projectMapper.insert(project);
-
         return project.getProjectId();
     }
 
@@ -88,51 +90,31 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BizException("项目ID不能为空");
         }
 
-        // ABAC 权限检查：检查员工是否有权读取该项目
         pep.checkProjectAccess(employeeId, projectId, Action.READ);
 
         Projects project = projectMapper.selectById(projectId);
         if (project == null) {
             throw new BizException("项目不存在");
         }
-
         return project;
     }
 
     @Override
-    public Map<String, Object> queryProjects(ProjectQueryDTO query) {
+    public Map<String, Object> queryProjects(ProjectQueryDTO query, Long employeeId) {
+        int pageNum = normalizePageNum(query.getPageNum());
+        int pageSize = normalizePageSize(query.getPageSize());
 
-        // 1. 参数校验与默认值
-        if (query.getPageNum() == null || query.getPageNum() < 1) {
-            query.setPageNum(1);
-        }
-        if (query.getPageSize() == null || query.getPageSize() < 1) {
-            query.setPageSize(10);
-        }
+        List<Projects> matchedProjects = projectMapper.selectByCondition(copyQueryWithoutPagination(query));
+        List<Projects> accessibleProjects = matchedProjects.stream()
+                .filter(project -> pep.decideAccess(employeeId, buildProjectResource(project), Action.READ).isAllowed())
+                .toList();
 
-        // 2. 计算分页偏移量（MyBatis LIMIT offset, size）
-        int offset = (query.getPageNum() - 1) * query.getPageSize();
-        query.setPageNum(offset); // 复用 pageNum 字段传递 offset
-
-        // 3. 查询数据
-        List<Projects> projects = projectMapper.selectByCondition(query);
-        int total = projectMapper.countByCondition(query);
-
-        // 4. 构建返回结果
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", projects);
-        result.put("total", total);
-        result.put("pageNum", (offset / query.getPageSize()) + 1);
-        result.put("pageSize", query.getPageSize());
-
-        return result;
+        return buildPageResult(accessibleProjects, pageNum, pageSize);
     }
 
     @Override
     @Transactional
     public void updateProjectPhase(UpdateProjectPhaseDTO dto, Long employeeId) {
-
-        // 1. 参数校验
         if (dto.getProjectId() == null) {
             throw new BizException("项目ID不能为空");
         }
@@ -140,31 +122,25 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BizException("新阶段不能为空");
         }
 
-        // 2. ABAC 权限检查：检查员工是否有权推进项目阶段
         pep.checkProjectAccess(employeeId, dto.getProjectId(), Action.ADVANCE_PHASE);
 
-        // 3. 校验项目是否存在
         Projects project = projectMapper.selectById(dto.getProjectId());
         if (project == null) {
             throw new BizException("项目不存在");
         }
 
-        // 4. 校验新阶段合法性
         ProjectPhase newPhase;
         try {
             newPhase = ProjectPhase.fromCode(dto.getNewPhase());
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException exception) {
             throw new BizException("非法的项目阶段");
         }
 
-        // 5. 阶段变更业务规则校验（可选）
-        ProjectPhase currentPhase = project.getProjectPhase();
-        if (currentPhase == ProjectPhase.ARCHIVED) {
-            throw new BizException("已归档的项目不能修改阶段");
+        if (project.getProjectPhase() == ProjectPhase.ARCHIVED) {
+            throw new BizException("已归档项目不能修改阶段");
         }
 
-        // 6. 更新阶段
-        projectMapper.updatePhase(dto.getProjectId(), dto.getNewPhase());
+        projectMapper.updatePhase(dto.getProjectId(), newPhase.getCode());
     }
 
     @Override
@@ -174,7 +150,6 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BizException("项目ID不能为空");
         }
 
-        // ABAC 权限检查：检查员工是否有权删除该项目
         pep.checkProjectAccess(employeeId, projectId, Action.DELETE);
 
         Projects project = projectMapper.selectById(projectId);
@@ -182,7 +157,47 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BizException("项目不存在");
         }
 
-        // 删除项目（注意：级联删除会删除关联的资产）
         projectMapper.deleteById(projectId);
+    }
+
+    private ProjectQueryDTO copyQueryWithoutPagination(ProjectQueryDTO query) {
+        ProjectQueryDTO copiedQuery = new ProjectQueryDTO();
+        copiedQuery.setProjectName(query.getProjectName());
+        copiedQuery.setProjectPhase(query.getProjectPhase());
+        copiedQuery.setSecurityLevel(query.getSecurityLevel());
+        copiedQuery.setCreatedByEmployeeId(query.getCreatedByEmployeeId());
+        copiedQuery.setPageNum(null);
+        copiedQuery.setPageSize(null);
+        return copiedQuery;
+    }
+
+    private Resource buildProjectResource(Projects project) {
+        return Resource.builder()
+                .type(ResourceType.PROJECT)
+                .projectPhase(project.getProjectPhase())
+                .securityLevel(project.getSecurityLevel())
+                .creatorId(project.getCreatedByEmployeeId())
+                .build();
+    }
+
+    private Map<String, Object> buildPageResult(List<?> data, int pageNum, int pageSize) {
+        int total = data.size();
+        int fromIndex = Math.min((pageNum - 1) * pageSize, total);
+        int toIndex = Math.min(fromIndex + pageSize, total);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", data.subList(fromIndex, toIndex));
+        result.put("total", total);
+        result.put("pageNum", pageNum);
+        result.put("pageSize", pageSize);
+        return result;
+    }
+
+    private int normalizePageNum(Integer pageNum) {
+        return pageNum == null || pageNum < 1 ? 1 : pageNum;
+    }
+
+    private int normalizePageSize(Integer pageSize) {
+        return pageSize == null || pageSize < 1 ? 10 : pageSize;
     }
 }

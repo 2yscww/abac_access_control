@@ -34,6 +34,7 @@ public class EmployeeAuthController {
                 if (result.isMustChangePassword()) {
                         return Response.Success(
                                         Map.of("tempToken", result.getTempToken(),
+                                                "employeeId", result.getEmployeeId(),
                                                 "mustChangePassword", true),
                                         "首次登录，请修改密码");
                 }

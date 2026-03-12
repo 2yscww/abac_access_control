@@ -16,23 +16,14 @@ import com.xie.platform.model.Department;
 import com.xie.platform.model.Employees;
 import com.xie.platform.model.ProjectAssets;
 import com.xie.platform.model.Projects;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 
-/**
- * ABAC 策略执行点实现
- *
- * 职责：
- * 1. 从数据库获取主体、资源的完整属性信息（PIP功能）
- * 2. 构建 ABAC 四要素（Subject, Resource, Action, Environment）
- * 3. 调用 PDP 做决策
- * 4. 根据决策结果放行或抛出 AccessDeniedException
- */
 @Component
 public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
 
@@ -52,67 +43,61 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
     private ProjectAssetsMapper projectAssetsMapper;
 
     @Override
-    public DecisionResult checkProjectAccess(Long employeeId, Long projectId, Action action) {
-        // 1. 构建 Subject（主体）
+    public DecisionResult decideAccess(Long employeeId, Resource resource, Action action) {
         Subject subject = buildSubject(employeeId);
-
-        // 2. 构建 Resource（资源）
-        Resource resource = buildResourceForProject(projectId);
-
-        // 3. 构建 Environment（环境）
         Environment environment = buildEnvironment();
+        return pdp.evaluate(subject, resource, action, environment);
+    }
 
-        // 4. 调用 PDP 做决策
-        DecisionResult result = pdp.evaluate(subject, resource, action, environment);
+    @Override
+    public void checkAccess(Long employeeId, Resource resource, Action action) {
+        DecisionResult result = decideAccess(employeeId, resource, action);
+        throwIfDenied(result);
+    }
 
-        // 5. 如果拒绝，抛出异常
-        if (!result.isAllowed()) {
-            throw new AccessDeniedException(result.getTriggerPolicy(), result.getReason());
-        }
+    @Override
+    public DecisionResult decideProjectAccess(Long employeeId, Long projectId, Action action) {
+        Resource resource = buildResourceForProject(projectId);
+        return decideAccess(employeeId, resource, action);
+    }
 
+    @Override
+    public DecisionResult checkProjectAccess(Long employeeId, Long projectId, Action action) {
+        DecisionResult result = decideProjectAccess(employeeId, projectId, action);
+        throwIfDenied(result);
         return result;
     }
 
     @Override
-    public DecisionResult checkAssetAccess(Long employeeId, Long assetId, Action action) {
-        // 1. 构建 Subject（主体）
-        Subject subject = buildSubject(employeeId);
-
-        // 2. 构建 Resource（资源）
+    public DecisionResult decideAssetAccess(Long employeeId, Long assetId, Action action) {
         Resource resource = buildResourceForAsset(assetId);
+        return decideAccess(employeeId, resource, action);
+    }
 
-        // 3. 构建 Environment（环境）
-        Environment environment = buildEnvironment();
-
-        // 4. 调用 PDP 做决策
-        DecisionResult result = pdp.evaluate(subject, resource, action, environment);
-
-        // 5. 如果拒绝，抛出异常
-        if (!result.isAllowed()) {
-            throw new AccessDeniedException(result.getTriggerPolicy(), result.getReason());
-        }
-
+    @Override
+    public DecisionResult checkAssetAccess(Long employeeId, Long assetId, Action action) {
+        DecisionResult result = decideAssetAccess(employeeId, assetId, action);
+        throwIfDenied(result);
         return result;
     }
 
-    /**
-     * 构建 Subject（主体）
-     * 从数据库查询员工的完整属性信息
-     */
+    private void throwIfDenied(DecisionResult result) {
+        if (!result.isAllowed()) {
+            throw new AccessDeniedException(result.getTriggerPolicy(), result.getReason());
+        }
+    }
+
     private Subject buildSubject(Long employeeId) {
-        // 查询员工信息
         Employees employee = employeesMapper.selectByEmployeeId(employeeId);
         if (employee == null) {
             throw new BizException("员工不存在：" + employeeId);
         }
 
-        // 查询部门信息（获取部门类型）
         Department department = departmentMapper.selectById(employee.getDeptId());
         if (department == null) {
             throw new BizException("部门不存在：" + employee.getDeptId());
         }
 
-        // 构建 Subject
         return new Subject(
                 employee.getEmployeeId(),
                 employee.getDeptId(),
@@ -123,71 +108,53 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
         );
     }
 
-    /**
-     * 构建 Resource（资源）- 项目
-     */
     private Resource buildResourceForProject(Long projectId) {
-        // 查询项目信息
         Projects project = projectMapper.selectById(projectId);
         if (project == null) {
             throw new BizException("项目不存在：" + projectId);
         }
 
-        // 构建 Resource
         return Resource.builder()
                 .type(ResourceType.PROJECT)
                 .projectPhase(project.getProjectPhase())
                 .securityLevel(project.getSecurityLevel())
                 .creatorId(project.getCreatedByEmployeeId())
-                .deptId(null)  // 项目不直接归属部门
+                .deptId(null)
                 .build();
     }
 
-    /**
-     * 构建 Resource（资源）- 资产
-     */
     private Resource buildResourceForAsset(Long assetId) {
-        // 查询资产信息
         ProjectAssets asset = projectAssetsMapper.selectById(assetId);
         if (asset == null) {
             throw new BizException("资产不存在：" + assetId);
         }
 
-        // 查询资产所属项目（获取项目阶段）
         Projects project = projectMapper.selectById(asset.getProjectId());
         if (project == null) {
             throw new BizException("资产所属项目不存在：" + asset.getProjectId());
         }
 
-        // 构建 Resource
         return Resource.builder()
                 .type(ResourceType.ASSET)
-                .projectPhase(project.getProjectPhase())  // 使用项目当前阶段
+                .projectPhase(project.getProjectPhase())
                 .securityLevel(asset.getSecurityLevel())
                 .creatorId(asset.getCreatedByEmployeeId())
-                .deptId(null)  // 资产不直接归属部门
+                .deptId(null)
                 .build();
     }
 
-    /**
-     * 构建 Environment（环境上下文）
-     * 从当前 HTTP 请求中提取环境信息
-     */
     private Environment buildEnvironment() {
         LocalDateTime requestTime = LocalDateTime.now();
         String ipAddress = "unknown";
 
         try {
-            // 尝试从 Spring 上下文获取当前请求
             ServletRequestAttributes attributes =
-                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
                 ipAddress = getClientIpAddress(request);
             }
-        } catch (Exception e) {
-            // 非 Web 请求场景（如定时任务、测试），使用默认值
+        } catch (Exception ignored) {
         }
 
         return Environment.builder()
@@ -196,10 +163,6 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
                 .build();
     }
 
-    /**
-     * 获取客户端真实 IP 地址
-     * 考虑代理和负载均衡的情况
-     */
     private String getClientIpAddress(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
 
@@ -211,7 +174,6 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
             ip = request.getRemoteAddr();
         }
 
-        // X-Forwarded-For 可能包含多个 IP，取第一个
         if (ip != null && ip.contains(",")) {
             ip = ip.split(",")[0].trim();
         }

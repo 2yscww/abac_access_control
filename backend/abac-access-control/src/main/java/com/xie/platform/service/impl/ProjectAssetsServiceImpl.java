@@ -2,6 +2,8 @@ package com.xie.platform.service.impl;
 
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.pep.PolicyEnforcementPoint;
+import com.xie.platform.access.resource.Resource;
+import com.xie.platform.access.resource.ResourceType;
 import com.xie.platform.dto.AssetQueryDTO;
 import com.xie.platform.dto.CreateAssetDTO;
 import com.xie.platform.exception.BizException;
@@ -36,8 +38,6 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
     @Override
     @Transactional
     public Long createAsset(CreateAssetDTO dto, Long creatorEmployeeId) {
-
-        // 1. 参数校验
         if (dto.getProjectId() == null) {
             throw new BizException("项目ID不能为空");
         }
@@ -54,35 +54,43 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
             throw new BizException("资产密级不能为空");
         }
 
-        // 2. 校验项目是否存在
         Projects project = projectMapper.selectById(dto.getProjectId());
         if (project == null) {
             throw new BizException("项目不存在");
         }
 
-        // 3. 校验枚举合法性
         AssetType assetType;
         try {
             assetType = AssetType.fromCode(dto.getAssetsType());
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException exception) {
             throw new BizException("非法的资产类型");
         }
 
         ProjectPhase assetsStage;
         try {
             assetsStage = ProjectPhase.fromCode(dto.getAssetsStage());
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException exception) {
             throw new BizException("非法的资产产生阶段");
         }
 
         SecurityLevel securityLevel;
         try {
             securityLevel = SecurityLevel.fromLevel(dto.getSecurityLevel());
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException exception) {
             throw new BizException("非法的资产密级");
         }
 
-        // 4. 构建资产实体
+        pep.checkAccess(
+                creatorEmployeeId,
+                Resource.builder()
+                        .type(ResourceType.ASSET)
+                        .projectPhase(project.getProjectPhase())
+                        .securityLevel(securityLevel)
+                        .creatorId(creatorEmployeeId)
+                        .build(),
+                Action.WRITE
+        );
+
         ProjectAssets asset = new ProjectAssets();
         asset.setProjectId(dto.getProjectId());
         asset.setAssetName(dto.getAssetName());
@@ -94,9 +102,7 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
         asset.setFileSize(dto.getFileSize());
         asset.setDescription(dto.getDescription());
 
-        // 5. 插入数据库
         projectAssetsMapper.insert(asset);
-
         return asset.getAssetId();
     }
 
@@ -106,59 +112,39 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
             throw new BizException("资产ID不能为空");
         }
 
-        // ABAC 权限检查：检查员工是否有权读取该资产
         pep.checkAssetAccess(employeeId, assetId, Action.READ);
 
         ProjectAssets asset = projectAssetsMapper.selectById(assetId);
         if (asset == null) {
             throw new BizException("资产不存在");
         }
-
         return asset;
     }
 
     @Override
-    public List<ProjectAssets> getAssetsByProjectId(Long projectId) {
+    public List<ProjectAssets> getAssetsByProjectId(Long projectId, Long employeeId) {
         if (projectId == null) {
             throw new BizException("项目ID不能为空");
         }
 
-        // 校验项目是否存在
-        Projects project = projectMapper.selectById(projectId);
-        if (project == null) {
-            throw new BizException("项目不存在");
-        }
+        pep.checkProjectAccess(employeeId, projectId, Action.READ);
 
-        return projectAssetsMapper.selectByProjectId(projectId);
+        return projectAssetsMapper.selectByProjectId(projectId).stream()
+                .filter(asset -> pep.decideAssetAccess(employeeId, asset.getAssetId(), Action.READ).isAllowed())
+                .toList();
     }
 
     @Override
-    public Map<String, Object> queryAssets(AssetQueryDTO query) {
+    public Map<String, Object> queryAssets(AssetQueryDTO query, Long employeeId) {
+        int pageNum = normalizePageNum(query.getPageNum());
+        int pageSize = normalizePageSize(query.getPageSize());
 
-        // 1. 参数校验与默认值
-        if (query.getPageNum() == null || query.getPageNum() < 1) {
-            query.setPageNum(1);
-        }
-        if (query.getPageSize() == null || query.getPageSize() < 1) {
-            query.setPageSize(10);
-        }
+        List<ProjectAssets> matchedAssets = projectAssetsMapper.selectByCondition(copyQueryWithoutPagination(query));
+        List<ProjectAssets> accessibleAssets = matchedAssets.stream()
+                .filter(asset -> pep.decideAssetAccess(employeeId, asset.getAssetId(), Action.READ).isAllowed())
+                .toList();
 
-        // 2. 计算分页偏移量
-        int offset = (query.getPageNum() - 1) * query.getPageSize();
-        query.setPageNum(offset);
-
-        // 3. 查询数据
-        List<ProjectAssets> assets = projectAssetsMapper.selectByCondition(query);
-        int total = projectAssetsMapper.countByCondition(query);
-
-        // 4. 构建返回结果
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", assets);
-        result.put("total", total);
-        result.put("pageNum", (offset / query.getPageSize()) + 1);
-        result.put("pageSize", query.getPageSize());
-
-        return result;
+        return buildPageResult(accessibleAssets, pageNum, pageSize);
     }
 
     @Override
@@ -168,7 +154,6 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
             throw new BizException("资产ID不能为空");
         }
 
-        // ABAC 权限检查：检查员工是否有权删除该资产
         pep.checkAssetAccess(employeeId, assetId, Action.DELETE);
 
         ProjectAssets asset = projectAssetsMapper.selectById(assetId);
@@ -176,7 +161,40 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
             throw new BizException("资产不存在");
         }
 
-        // 删除资产
         projectAssetsMapper.deleteById(assetId);
+    }
+
+    private AssetQueryDTO copyQueryWithoutPagination(AssetQueryDTO query) {
+        AssetQueryDTO copiedQuery = new AssetQueryDTO();
+        copiedQuery.setProjectId(query.getProjectId());
+        copiedQuery.setAssetName(query.getAssetName());
+        copiedQuery.setAssetsType(query.getAssetsType());
+        copiedQuery.setAssetsStage(query.getAssetsStage());
+        copiedQuery.setSecurityLevel(query.getSecurityLevel());
+        copiedQuery.setCreatedByEmployeeId(query.getCreatedByEmployeeId());
+        copiedQuery.setPageNum(null);
+        copiedQuery.setPageSize(null);
+        return copiedQuery;
+    }
+
+    private Map<String, Object> buildPageResult(List<?> data, int pageNum, int pageSize) {
+        int total = data.size();
+        int fromIndex = Math.min((pageNum - 1) * pageSize, total);
+        int toIndex = Math.min(fromIndex + pageSize, total);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", data.subList(fromIndex, toIndex));
+        result.put("total", total);
+        result.put("pageNum", pageNum);
+        result.put("pageSize", pageSize);
+        return result;
+    }
+
+    private int normalizePageNum(Integer pageNum) {
+        return pageNum == null || pageNum < 1 ? 1 : pageNum;
+    }
+
+    private int normalizePageSize(Integer pageSize) {
+        return pageSize == null || pageSize < 1 ? 10 : pageSize;
     }
 }
