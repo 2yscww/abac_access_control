@@ -2,6 +2,7 @@ package com.xie.platform.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xie.platform.common.Response;
+import com.xie.platform.utils.CurrentUserContext;
 import com.xie.platform.utils.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -24,6 +25,8 @@ import java.util.Set;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    // ? 放行白名单
+    // TODO 这部分可能存在疑问
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/employee/login",
             "/api/employee/change-password",
@@ -38,6 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.objectMapper = objectMapper;
     }
 
+    // ? 白名单机制
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         return PUBLIC_PATHS.contains(request.getRequestURI());
@@ -72,6 +76,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.clearContext();
             writeUnauthorized(response, "登录凭证无效或已过期");
         } finally {
+            // TODO 查看是否为逻辑错误
+            // ? 当前代码不会把请求破坏，但是后续还需要再审视一下
             SecurityContextHolder.clearContext();
         }
     }

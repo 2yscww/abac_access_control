@@ -1,4 +1,4 @@
-package com.xie.platform.security;
+package com.xie.platform.utils;
 
 import com.xie.platform.exception.BizException;
 import org.springframework.security.core.Authentication;

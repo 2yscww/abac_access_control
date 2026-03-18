@@ -27,6 +27,12 @@ public class Resource {
     private ProjectPhase projectPhase;
 
     /**
+     * 资产产生阶段（历史快照）
+     * 仅对 ASSET 资源有意义，用于区分“当前项目阶段”和“资产最初产生于哪个阶段”。
+     */
+    private ProjectPhase assetsStage;
+
+    /**
      * 资源的保密等级
      * 用于判断主体的职级是否有权访问该密级的资源
      */

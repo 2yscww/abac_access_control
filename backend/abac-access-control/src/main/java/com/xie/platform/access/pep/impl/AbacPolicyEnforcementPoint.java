@@ -1,9 +1,11 @@
-package com.xie.platform.access.pep;
+package com.xie.platform.access.pep.impl;
 
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.environment.Environment;
 import com.xie.platform.access.pdp.DecisionResult;
 import com.xie.platform.access.pdp.PolicyDecisionPoint;
+import com.xie.platform.access.pep.AccessDeniedException;
+import com.xie.platform.access.pep.PolicyEnforcementPoint;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.access.resource.ResourceType;
 import com.xie.platform.access.subject.Subject;
@@ -137,6 +139,7 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
         return Resource.builder()
                 .type(ResourceType.ASSET)
                 .projectPhase(project.getProjectPhase())
+                .assetsStage(asset.getAssetsStage())
                 .securityLevel(asset.getSecurityLevel())
                 .creatorId(asset.getCreatedByEmployeeId())
                 .deptId(null)

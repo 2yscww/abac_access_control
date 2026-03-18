@@ -24,9 +24,9 @@ public class CreateAssetDTO {
     private Integer securityLevel;
 
     /**
-     * 文件路径或Git地址
-     * - 文档类：本地路径或云存储URL
-     * - 代码类：Git仓库地址
+     * 外部存储引用地址
+     * - 文档类：OSS / 对象存储 URL
+     * - 代码类：GitLab / Git 仓库地址
      */
     private String filePath;
 

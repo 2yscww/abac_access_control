@@ -13,7 +13,6 @@ public interface EmployeeAuthService {
      * @return 登录结果
      */
 
-    // TODO 继续完善登录功能
 
     LoginResult login(String employeeCode, String rawPassword);
 

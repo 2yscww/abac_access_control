@@ -73,6 +73,10 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
             throw new BizException("非法的资产产生阶段");
         }
 
+        if (assetsStage != project.getProjectPhase()) {
+            throw new BizException("资产产生阶段必须与当前项目阶段一致");
+        }
+
         SecurityLevel securityLevel;
         try {
             securityLevel = SecurityLevel.fromLevel(dto.getSecurityLevel());
@@ -85,6 +89,7 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
                 Resource.builder()
                         .type(ResourceType.ASSET)
                         .projectPhase(project.getProjectPhase())
+                        .assetsStage(assetsStage)
                         .securityLevel(securityLevel)
                         .creatorId(creatorEmployeeId)
                         .build(),

@@ -44,10 +44,10 @@ public class ProjectAssets {
     private LocalDateTime createdAt;
 
     /**
-     * 文件路径或Git地址
-     * - 文档类资产：本地路径（如 /uploads/projects/1738051200000/doc.pdf）
-     * - 代码类资产：Git URL（如 https://github.com/company/repo.git）
-     * - 云存储：OSS URL（如 https://oss.aliyun.com/bucket/file.pdf）
+     * 外部存储引用地址
+     * - 文档类资产：OSS / 对象存储 URL
+     * - 代码类资产：GitLab / Git 仓库地址
+     * - 系统只保存引用，不直接存储文件内容
      */
     private String filePath;
 

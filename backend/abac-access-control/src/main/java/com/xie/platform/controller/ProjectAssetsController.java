@@ -4,8 +4,9 @@ import com.xie.platform.common.Response;
 import com.xie.platform.dto.AssetQueryDTO;
 import com.xie.platform.dto.CreateAssetDTO;
 import com.xie.platform.model.ProjectAssets;
-import com.xie.platform.security.CurrentUserContext;
 import com.xie.platform.service.ProjectAssetsService;
+import com.xie.platform.utils.CurrentUserContext;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 

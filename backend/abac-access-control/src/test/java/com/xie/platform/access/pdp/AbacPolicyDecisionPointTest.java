@@ -2,6 +2,7 @@ package com.xie.platform.access.pdp;
 
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.environment.Environment;
+import com.xie.platform.access.policy.impl.AssetStageAccessPolicy;
 import com.xie.platform.access.policy.impl.PhaseAccessPolicy;
 import com.xie.platform.access.policy.impl.SecurityLevelPolicy;
 import com.xie.platform.access.resource.Resource;
@@ -60,7 +61,8 @@ class AbacPolicyDecisionPointTest {
         pdp = new AbacPolicyDecisionPoint();
         pdp.allPolicies = Arrays.asList(
                 new SecurityLevelPolicy(),
-                new PhaseAccessPolicy()
+                new PhaseAccessPolicy(),
+                new AssetStageAccessPolicy()
         );
         pdp.init(); // 触发 @PostConstruct 逻辑
 
@@ -71,7 +73,7 @@ class AbacPolicyDecisionPointTest {
                 .build();
 
         System.out.println("\n========== ABAC 策略决策点测试报告 ==========");
-        System.out.println("已加载策略：SecurityLevelPolicy, PhaseAccessPolicy");
+        System.out.println("已加载策略：SecurityLevelPolicy, PhaseAccessPolicy, AssetStageAccessPolicy");
         System.out.println("测试环境：IP=" + defaultEnv.getIpAddress() + ", Time=" + defaultEnv.getRequestTime());
         System.out.println("============================================\n");
     }
@@ -118,10 +120,14 @@ class AbacPolicyDecisionPointTest {
     }
 
     private String formatResource(Resource resource) {
+        String stage = resource.getProjectPhase() != null ? resource.getProjectPhase().name() : "无";
+        if (resource.getType() == ResourceType.ASSET && resource.getAssetsStage() != null) {
+            stage = stage + " / 资产" + resource.getAssetsStage().name();
+        }
         return String.format("%s [%s] [%s阶段]",
             resource.getType(),
             resource.getSecurityLevel(),
-            resource.getProjectPhase() != null ? resource.getProjectPhase() : "无");
+            stage);
     }
 
     // ========== 安全策略层测试 ==========
@@ -227,6 +233,41 @@ class AbacPolicyDecisionPointTest {
 
         DecisionResult result = pdp.evaluate(subject, resource, Action.WRITE, defaultEnv);
         printTestResult("产品部 WRITE 需求设计阶段资产", subject, resource, Action.WRITE, result);
+
+        assertTrue(result.isAllowed());
+    }
+
+    @Test
+    @DisplayName("资产阶段策略：研发部 READ 研发阶段项目下的立项资产 → 拒绝")
+    void testAssetStagePolicy_RdReadInitAssetInDevelopmentProject() {
+        Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
+        Resource resource = Resource.builder()
+                .type(ResourceType.ASSET)
+                .securityLevel(SecurityLevel.INTERNAL)
+                .projectPhase(ProjectPhase.DEVELOPMENT)
+                .assetsStage(ProjectPhase.INIT)
+                .build();
+
+        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
+        printTestResult("研发部 READ 研发阶段项目下的立项资产", subject, resource, Action.READ, result);
+
+        assertFalse(result.isAllowed());
+        assertEquals("AssetStageAccessPolicy", result.getTriggerPolicy());
+    }
+
+    @Test
+    @DisplayName("资产阶段策略：产品部 READ 研发阶段项目下的立项资产 → 通过")
+    void testAssetStagePolicy_ProductReadInitAssetInDevelopmentProject() {
+        Subject subject = new Subject(1L, 1L, DeptType.PRODUCT, 1L, EmployeeLevel.P5, false);
+        Resource resource = Resource.builder()
+                .type(ResourceType.ASSET)
+                .securityLevel(SecurityLevel.INTERNAL)
+                .projectPhase(ProjectPhase.DEVELOPMENT)
+                .assetsStage(ProjectPhase.INIT)
+                .build();
+
+        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
+        printTestResult("产品部 READ 研发阶段项目下的立项资产", subject, resource, Action.READ, result);
 
         assertTrue(result.isAllowed());
     }

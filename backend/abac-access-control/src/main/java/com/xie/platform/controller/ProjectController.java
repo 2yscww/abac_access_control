@@ -5,8 +5,9 @@ import com.xie.platform.dto.CreateProjectDTO;
 import com.xie.platform.dto.ProjectQueryDTO;
 import com.xie.platform.dto.UpdateProjectPhaseDTO;
 import com.xie.platform.model.Projects;
-import com.xie.platform.security.CurrentUserContext;
 import com.xie.platform.service.ProjectService;
+import com.xie.platform.utils.CurrentUserContext;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
