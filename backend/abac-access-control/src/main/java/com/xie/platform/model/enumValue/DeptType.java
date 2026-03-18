@@ -6,6 +6,7 @@ package com.xie.platform.model.enumValue;
  */
 public enum DeptType {
 
+    HR("人事部"),
     PRODUCT("产品部"),
     RD("研发部"),
     QA("测试部"),

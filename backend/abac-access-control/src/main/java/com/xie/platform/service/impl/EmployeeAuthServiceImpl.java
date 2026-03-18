@@ -8,6 +8,7 @@ import com.xie.platform.mapper.EmployeesMapper;
 import com.xie.platform.model.Branch;
 import com.xie.platform.model.Department;
 import com.xie.platform.model.Employees;
+import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeLevel;
 import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.service.EmployeeAuthService;
@@ -136,7 +137,23 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
     @Override
     @Transactional
-    public void createEmployee(CreateEmployeeDTO dto) {
+    public void createEmployee(CreateEmployeeDTO dto, Long operatorEmployeeId) {
+
+        Employees operator = employeesMapper.selectByEmployeeId(operatorEmployeeId);
+        if (operator == null) {
+            throw new BizException("当前操作人不存在");
+        }
+        if (operator.getStatus() != EmployeeStatus.ACTIVE) {
+            throw new BizException("当前操作人状态不可用");
+        }
+
+        Department operatorDept = departmentMapper.selectById(operator.getDeptId());
+        if (operatorDept == null) {
+            throw new BizException("当前操作人所属部门不存在");
+        }
+        if (operatorDept.getDeptType() != DeptType.HR) {
+            throw new BizException("仅人事部允许创建员工");
+        }
 
         // 0. DTO 基础校验
         if (dto.getEmployeeName() == null || dto.getEmployeeName().isBlank()) {

@@ -31,6 +31,6 @@ public interface EmployeeAuthService {
     /**
      * 创建员工
      */
-    void createEmployee(CreateEmployeeDTO dto);
+    void createEmployee(CreateEmployeeDTO dto, Long operatorEmployeeId);
 
 }

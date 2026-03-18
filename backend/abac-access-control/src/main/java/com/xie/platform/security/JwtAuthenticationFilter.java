@@ -29,8 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     // TODO 这部分可能存在疑问
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/employee/login",
-            "/api/employee/change-password",
-            "/api/employee/create"
+            "/api/employee/change-password"
     );
 
     private final JwtUtil jwtUtil;

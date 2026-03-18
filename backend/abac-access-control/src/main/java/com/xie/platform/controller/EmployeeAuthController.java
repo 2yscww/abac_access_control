@@ -6,6 +6,7 @@ import com.xie.platform.dto.CreateEmployeeDTO;
 import com.xie.platform.dto.EmployeeLoginDTO;
 import com.xie.platform.service.EmployeeAuthService;
 import com.xie.platform.service.result.LoginResult;
+import com.xie.platform.utils.CurrentUserContext;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -79,7 +80,8 @@ public class EmployeeAuthController {
         // 创建员工
         @PostMapping("/create")
         public Response<Void> createEmployee(@RequestBody CreateEmployeeDTO dto) {
-                employeeAuthService.createEmployee(dto);
+                Long operatorEmployeeId = CurrentUserContext.getRequiredEmployeeId();
+                employeeAuthService.createEmployee(dto, operatorEmployeeId);
                 return Response.Success(null, null);
         }
 
