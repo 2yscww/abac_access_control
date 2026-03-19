@@ -3,14 +3,24 @@ CREATE TABLE departments (
     dept_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     dept_name VARCHAR(64) NOT NULL UNIQUE,
     dept_type VARCHAR(64) NOT NULL,
+    manager_id BIGINT, 
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 );
 
--- departments：部门表
+-- * departments：部门表，对应企业组织结构（ABAC中的组织属性来源）
+
 -- dept_id：部门唯一标识
--- dept_name：部门名称（如 R&D、QA、Legal）
--- dept_type: 部门类别
+-- dept_name：部门名称（如 产品部、研发部、测试部、运维部、管理层）
+-- dept_type：部门类别（如 技术类 / 业务类 / 管理类，可用于策略判断）
+
+-- manager_id：部门负责人（员工ID）
+--   - 表示该部门的直接管理者（如研发部负责人、测试负责人等）
+--   - 在权限控制中可用于：
+--       1. 审批类操作（如阶段推进、资源审批）
+--       2. 高权限访问控制（如跨阶段访问）
+--       3. 审计责任归属
+
 -- created_at：记录创建时间
 -- updated_at：记录更新时间
 
@@ -71,7 +81,19 @@ CREATE TABLE employees (
 -- created_at：记录创建时间
 -- updated_at：记录更新时间
 
+-- ! 项目成员表
+CREATE TABLE project_members (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    project_id BIGINT NOT NULL,
+    employee_id BIGINT NOT NULL,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
+    CONSTRAINT fk_pm_project
+        FOREIGN KEY (project_id) REFERENCES projects(project_id),
+
+    CONSTRAINT fk_pm_employee
+        FOREIGN KEY (employee_id) REFERENCES employees(employee_id)
+);
 
 
 
@@ -82,6 +104,7 @@ CREATE TABLE projects (
     project_phase INT NOT NULL,
     security_level INT NOT NULL,
     created_by_employee_id BIGINT,
+    owner_id BIGINT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -92,6 +115,7 @@ CREATE TABLE projects (
 -- * project_phase：项目阶段
 -- * security_level 项目保密等级 (公开、内部、机密、高度机密)
 -- created_by_employee_id：项目创建人（员工ID）
+-- owner_id : 实际负责人(员工ID)
 -- created_at：项目创建时间
 -- updated_at：项目更新时间
 
@@ -146,7 +170,7 @@ CREATE TABLE policies (
     enabled BOOLEAN DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) 
+);
 
 -- policies：ABAC策略表，用于存储访问控制策略
 
@@ -162,32 +186,65 @@ CREATE TABLE policies (
 
 
 
+
+
 -- ! 安全审计日志表
+
 CREATE TABLE audit_logs (
     log_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     employee_id BIGINT NOT NULL,
-    asset_id VARCHAR(64),
+    resource_type VARCHAR(32) NOT NULL,
+    resource_id BIGINT,
+    project_id BIGINT,
     action VARCHAR(32) NOT NULL,
     decision VARCHAR(16) NOT NULL,
-    matched_policies JSON,
+    trigger_policy VARCHAR(128),
     deny_reason VARCHAR(255),
-    network_zone VARCHAR(32),
-    device_safety FLOAT,
-    access_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    project_phase INT,
+    assets_stage INT,
+    security_level INT,
+    request_ip VARCHAR(64),
+    request_uri VARCHAR(255),
+    request_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_audit_employee
         FOREIGN KEY (employee_id)
         REFERENCES employees(employee_id)
         ON DELETE CASCADE
         ON UPDATE CASCADE,
-    CONSTRAINT fk_audit_asset
-        FOREIGN KEY (asset_id)
-        REFERENCES project_assets(asset_id)
+    CONSTRAINT fk_audit_project
+        FOREIGN KEY (project_id)
+        REFERENCES projects(project_id)
         ON DELETE SET NULL
         ON UPDATE CASCADE
-) 
+);
+
+CREATE INDEX idx_audit_employee_time
+    ON audit_logs(employee_id, request_time);
+
+CREATE INDEX idx_audit_action_time
+    ON audit_logs(action, request_time);
+
+CREATE INDEX idx_audit_resource
+    ON audit_logs(resource_type, resource_id);
+
+CREATE INDEX idx_audit_project
+    ON audit_logs(project_id, request_time);
 
 
 -- audit_logs：安全审计日志表，用于记录系统操作行为与权限决策情况
+
+-- 字段说明
+-- resource_type: PROJECT / ASSET
+-- resource_id:
+--   - PROJECT 日志时，对应 project_id
+--   - ASSET 日志时，对应 asset_id
+-- project_id:
+--   - 项目日志时，等于 project_id
+--   - 资产日志时，表示资产所属项目
+-- trigger_policy: 触发本次决策的规则名，例如 SecurityLevelPolicy
+-- project_phase / assets_stage / security_level:
+--   用于保存授权发生当下的资源快照，避免历史审计受后续资源变更影响
+
 
 -- log_id：审计日志唯一标识
 -- user_id：执行操作的用户ID
@@ -199,3 +256,12 @@ CREATE TABLE audit_logs (
 -- network_zone：访问网络环境（如内网、VPN、公网）
 -- device_safety：设备安全评分（如杀毒/补丁状态）
 -- access_time：操作发生时间
+
+
+
+ALTER TABLE departments
+ADD CONSTRAINT fk_dept_manager
+FOREIGN KEY (manager_id)
+REFERENCES employees(employee_id)
+ON DELETE SET NULL
+ON UPDATE CASCADE;
