@@ -86,6 +86,9 @@ CREATE TABLE project_members (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     project_id BIGINT NOT NULL,
     employee_id BIGINT NOT NULL,
+    status VARCHAR(16) DEFAULT 'ACTIVE',
+    joined_phase INT NOT NULL,
+    left_at DATETIME,
     joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_pm_project
@@ -94,6 +97,32 @@ CREATE TABLE project_members (
     CONSTRAINT fk_pm_employee
         FOREIGN KEY (employee_id) REFERENCES employees(employee_id)
 );
+
+-- * project_members：项目成员表，用于记录员工参与项目的关系及其生命周期（支持审计与ABAC）
+
+-- id：主键
+-- project_id：所属项目ID
+-- employee_id：参与该项目的员工ID
+
+-- * status：成员状态
+--   ACTIVE：当前参与项目
+--   INACTIVE：已退出项目（不物理删除，用于保留历史）
+
+-- * joined_phase：加入项目时的项目阶段
+--   用于记录成员是在项目哪个阶段进入的（如研发阶段加入、测试阶段加入）
+--   可用于ABAC中的环境属性判断
+
+-- left_at：退出项目时间（为空表示仍在项目中）
+--   当成员退出项目时填写，用于历史审计与追溯
+
+-- joined_at：加入项目时间
+
+-- ? 本表不做物理删除（DELETE），而是通过 status + left_at 记录成员生命周期
+-- ? 支持项目成员的历史追溯（谁在什么阶段参与过项目）
+
+-- ? 可用于ABAC决策，例如：
+--   - 判断用户是否为当前阶段的有效成员（status = ACTIVE）
+--   - 判断用户是否在某阶段参与过项目（joined_phase <= 当前阶段）
 
 
 
