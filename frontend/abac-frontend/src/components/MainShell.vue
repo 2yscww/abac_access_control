@@ -1,59 +1,94 @@
 <script setup>
 import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
 
-import { useAuthStore } from '@/stores/auth'
+import AppSidebar from '@/components/AppSidebar.vue'
 
-const authStore = useAuthStore()
 const route = useRoute()
-const router = useRouter()
 
-const navItems = [
-  { name: 'projects', label: '项目总览' },
-  { name: 'assets', label: '资产总览' },
-]
-
-const employeeLabel = computed(() =>
-  authStore.employeeId ? `EMP-${authStore.employeeId}` : '已登录用户',
-)
-
-function logout() {
-  authStore.clearSession()
-  router.push({ name: 'login' })
-}
+const pageTitle = computed(() => route.meta.title || '业务页面')
+const pageDescription = computed(() => route.meta.description || '')
 </script>
 
 <template>
-  <div class="shell">
-    <aside class="shell__aside">
-      <div>
-        <p class="eyebrow">ABAC Graduation Project</p>
-        <h1 class="shell__title">企业在线数字资产管理系统</h1>
-        <p class="shell__subtitle">
-          以项目阶段、密级和员工属性为核心，统一管理企业数字资产的访问控制。
-        </p>
+  <el-container class="main-shell">
+    <el-aside width="240px" class="main-shell__aside">
+      <AppSidebar />
+    </el-aside>
+
+    <el-container class="main-shell__content">
+      <div class="main-shell__topbar">
+        <div>
+          <h2 class="main-shell__title">{{ pageTitle }}</h2>
+          <p v-if="pageDescription" class="main-shell__description">{{ pageDescription }}</p>
+        </div>
       </div>
 
-      <nav class="shell__nav">
-        <button
-          v-for="item in navItems"
-          :key="item.name"
-          class="nav-button"
-          :class="{ 'nav-button--active': route.name === item.name }"
-          @click="router.push({ name: item.name })"
-        >
-          {{ item.label }}
-        </button>
-      </nav>
-
-      <div class="shell__meta">
-        <span class="badge">{{ employeeLabel }}</span>
-        <button class="secondary-button" @click="logout">退出登录</button>
-      </div>
-    </aside>
-
-    <main class="shell__main">
-      <slot />
-    </main>
-  </div>
+      <el-main class="main-shell__main">
+        <RouterView />
+      </el-main>
+    </el-container>
+  </el-container>
 </template>
+
+<style scoped>
+.main-shell {
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+.main-shell__aside {
+  border-right: 1px solid #e4e7ed;
+  background: #ffffff;
+}
+
+.main-shell__content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.main-shell__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px 0;
+}
+
+.main-shell__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.main-shell__description {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #909399;
+}
+
+.main-shell__main {
+  padding: 20px 24px 24px;
+}
+
+@media (max-width: 960px) {
+  .main-shell {
+    display: block;
+  }
+
+  .main-shell__aside {
+    width: 100% !important;
+    border-right: none;
+    border-bottom: 1px solid #e4e7ed;
+  }
+
+  .main-shell__topbar {
+    padding: 16px 16px 0;
+  }
+
+  .main-shell__main {
+    padding: 16px;
+  }
+}
+</style>

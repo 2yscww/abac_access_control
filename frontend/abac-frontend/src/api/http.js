@@ -26,15 +26,12 @@ function buildQuery(query = {}) {
 
 export async function apiRequest(path, options = {}) {
   const authStore = useAuthStore(pinia)
-  const {
-    method = 'GET',
-    body,
-    query,
-    token,
-  } = options
+  const { method = 'GET', body, query, token } = options
+  const isFormData = body instanceof FormData
 
-  const headers = {
-    'Content-Type': 'application/json',
+  const headers = {}
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json'
   }
 
   const authToken = token || authStore.token
@@ -45,7 +42,7 @@ export async function apiRequest(path, options = {}) {
   const response = await fetch(`${path}${buildQuery(query)}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
   })
 
   let payload = null
@@ -60,11 +57,8 @@ export async function apiRequest(path, options = {}) {
     if (businessCode === 401 || response.status === 401) {
       authStore.clearSession()
     }
-    throw new ApiError(
-      payload?.msg || '请求失败，请稍后重试',
-      response.status,
-      businessCode,
-    )
+
+    throw new ApiError(payload?.msg || '请求失败，请稍后重试', response.status, businessCode)
   }
 
   return payload?.data

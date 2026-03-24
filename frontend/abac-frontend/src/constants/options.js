@@ -11,7 +11,7 @@ export const securityLevelOptions = [
   { value: 1, key: 'PUBLIC', label: '公开' },
   { value: 2, key: 'INTERNAL', label: '内部' },
   { value: 3, key: 'CONFIDENTIAL', label: '机密' },
-  { value: 4, key: 'TOP_SECRET', label: '高度机密' },
+  { value: 4, key: 'TOP_SECRET', label: '绝密' },
 ]
 
 export const assetTypeOptions = [

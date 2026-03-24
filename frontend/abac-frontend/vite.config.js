@@ -10,6 +10,17 @@ export default defineConfig({
     vue(),
     vueDevTools(),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-vue': ['vue', 'vue-router', 'pinia'],
+          'vendor-element-plus': ['element-plus'],
+          'vendor-echarts': ['echarts'],
+        },
+      },
+    },
+  },
   server: {
     port:8081,
     proxy: {

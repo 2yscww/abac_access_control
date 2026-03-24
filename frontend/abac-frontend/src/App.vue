@@ -5,3 +5,5 @@ import { RouterView } from 'vue-router'
 <template>
   <RouterView />
 </template>
+
+<!-- TODO 前端页面需要优化成 vue + elementplus + ESchart -->
