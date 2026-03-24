@@ -5,7 +5,7 @@ CREATE TABLE departments (
     dept_type VARCHAR(64) NOT NULL,
     manager_id BIGINT, 
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- * departments：部门表，对应企业组织结构（ABAC中的组织属性来源）
