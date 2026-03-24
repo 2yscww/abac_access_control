@@ -37,6 +37,9 @@ public class Projects {
     /** 项目创建人（员工ID） */
     private Long createdByEmployeeId;
 
+    /** 当前阶段实际负责人（员工ID） */
+    private Long ownerId;
+
     /** 项目创建时间 */
     private LocalDateTime createdAt;
 

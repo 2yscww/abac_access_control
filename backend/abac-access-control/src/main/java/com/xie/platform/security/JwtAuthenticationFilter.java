@@ -61,6 +61,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String token = authHeader.substring(7);
             Claims claims = jwtUtil.parseToken(token);
+            if (jwtUtil.isChangePasswordToken(claims)) {
+                writeUnauthorized(response, "临时凭证仅可用于修改密码");
+                return;
+            }
             Long employeeId = Long.parseLong(claims.getSubject());
 
             request.setAttribute(CurrentUserContext.EMPLOYEE_ID_ATTR, employeeId);

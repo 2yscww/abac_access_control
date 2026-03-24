@@ -23,6 +23,9 @@ public class CreateProjectDTO {
      */
     private Integer securityLevel;
 
+    /** 当前阶段负责人（员工ID） */
+    private Long ownerId;
+
     /** 项目ID（可选，不传则自动生成） */
     private Long projectId;
 }

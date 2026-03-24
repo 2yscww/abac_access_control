@@ -8,4 +8,5 @@ public class Department {
     private Long deptId;
     private String deptName;
     private DeptType deptType;
+    private Long managerId;
 }

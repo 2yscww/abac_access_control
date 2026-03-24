@@ -5,7 +5,6 @@
 
 <mapper namespace="com.xie.platform.mapper.EmployeesMapper">
 
-    <!-- 根据员工名查询 -->
     <select id="selectByEmployeeName" resultType="com.xie.platform.model.Employees">
         SELECT
             employee_id,
@@ -25,7 +24,6 @@
         WHERE employee_name = #{employeeName}
     </select>
 
-    <!-- 根据工号查询 -->
     <select id="selectByEmployeeCode" resultType="com.xie.platform.model.Employees">
         SELECT
             employee_id,
@@ -45,10 +43,10 @@
         WHERE employee_code = #{employeeCode}
     </select>
 
-    <!-- ? 根据 ID 查询 -->
     <select id="selectByEmployeeId" resultType="com.xie.platform.model.Employees">
         SELECT
             employee_id,
+            employee_code,
             employee_name,
             dept_id,
             branch_id,
@@ -64,7 +62,6 @@
         WHERE employee_id = #{employeeId}
     </select>
 
-    <!-- 修改密码 -->
     <update id="updatePassword">
         UPDATE employees
         SET
@@ -74,7 +71,6 @@
         WHERE employee_id = #{employeeId}
     </update>
 
-    <!-- 新增员工 -->
     <insert id="insert" parameterType="com.xie.platform.model.Employees" useGeneratedKeys="true" keyProperty="employeeId">
         INSERT INTO employees (
             employee_code,
@@ -101,11 +97,48 @@
         )
     </insert>
 
-    <!-- 回填工号 -->
     <update id="updateEmployeeCode">
         UPDATE employees
         SET employee_code = #{employeeCode}
         WHERE employee_id = #{employeeId}
     </update>
+
+    <update id="updateStatus">
+        UPDATE employees
+        SET status = #{status},
+            updated_at = NOW()
+        WHERE employee_id = #{employeeId}
+    </update>
+
+    <select id="selectActiveOptions" resultType="com.xie.platform.dto.EmployeeOptionDTO">
+        SELECT
+            employee_id,
+            employee_code,
+            employee_name,
+            dept_id,
+            status
+        FROM employees
+        WHERE status = 'ACTIVE'
+        <if test="keyword != null and keyword != ''">
+            AND (
+                employee_code LIKE CONCAT('%', #{keyword}, '%')
+                OR employee_name LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        ORDER BY employee_code
+    </select>
+
+    <select id="selectActiveOptionsByDeptId" resultType="com.xie.platform.dto.EmployeeOptionDTO">
+        SELECT
+            employee_id,
+            employee_code,
+            employee_name,
+            dept_id,
+            status
+        FROM employees
+        WHERE status = 'ACTIVE'
+          AND dept_id = #{deptId}
+        ORDER BY employee_code
+    </select>
 
 </mapper>

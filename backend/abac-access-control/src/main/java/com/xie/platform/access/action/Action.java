@@ -18,6 +18,12 @@ public enum Action {
     /** 推进项目阶段 */
     ADVANCE_PHASE,
 
+    /** HR 发起员工离职 */
+    OFFBOARD_EMPLOYEE,
+
+    /** 管理层指定部门负责人 */
+    ASSIGN_DEPARTMENT_MANAGER,
+
     /** 导出资源（未来扩展） */
     EXPORT
 }

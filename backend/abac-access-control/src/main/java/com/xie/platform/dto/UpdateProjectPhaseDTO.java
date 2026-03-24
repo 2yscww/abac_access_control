@@ -16,4 +16,7 @@ public class UpdateProjectPhaseDTO {
      * 1-立项 2-需求设计 3-研发实现 4-测试验证 5-上线交付 6-归档
      */
     private Integer newPhase;
+
+    /** 目标阶段负责人（员工ID） */
+    private Long nextOwnerId;
 }

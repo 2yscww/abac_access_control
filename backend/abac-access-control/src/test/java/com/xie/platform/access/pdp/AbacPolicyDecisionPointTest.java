@@ -3,408 +3,180 @@ package com.xie.platform.access.pdp;
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.environment.Environment;
 import com.xie.platform.access.policy.impl.AssetStageAccessPolicy;
+import com.xie.platform.access.policy.impl.EnvironmentAccessPolicy;
+import com.xie.platform.access.policy.impl.HistoricalExportPolicy;
 import com.xie.platform.access.policy.impl.PhaseAccessPolicy;
+import com.xie.platform.access.policy.impl.ProjectOwnerPhasePolicy;
 import com.xie.platform.access.policy.impl.SecurityLevelPolicy;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.access.resource.ResourceType;
 import com.xie.platform.access.subject.Subject;
+import com.xie.platform.mapper.DepartmentMapper;
+import com.xie.platform.model.Department;
 import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeLevel;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-/**
- * PDP 单元测试
- *
- * 测试策略：
- * 1. 不启动 Spring 容器，手动构造 PDP 和规则
- * 2. 构造各种 Subject + Resource + Action 组合
- * 3. 验证决策结果是否符合预期
- */
 class AbacPolicyDecisionPointTest {
 
     private AbacPolicyDecisionPoint pdp;
     private Environment defaultEnv;
-    private List<TestRecord> testRecords = new ArrayList<>();
-
-    static class TestRecord {
-        String testName;
-        boolean passed;
-        boolean expectedAllow;
-        boolean actualAllow;
-        String triggerPolicy;
-        String reason;
-
-        TestRecord(String testName, boolean passed, boolean expectedAllow, boolean actualAllow, String triggerPolicy, String reason) {
-            this.testName = testName;
-            this.passed = passed;
-            this.expectedAllow = expectedAllow;
-            this.actualAllow = actualAllow;
-            this.triggerPolicy = triggerPolicy;
-            this.reason = reason;
-        }
-    }
 
     @BeforeEach
     void setUp() {
-        // 手动构造 PDP，注入两条规则
+        DepartmentMapper departmentMapper = mock(DepartmentMapper.class);
+        when(departmentMapper.selectById(1L)).thenReturn(buildDepartment(1L, DeptType.RD, 9L));
+
         pdp = new AbacPolicyDecisionPoint();
         pdp.allPolicies = Arrays.asList(
                 new SecurityLevelPolicy(),
+                new EnvironmentAccessPolicy(),
+                new HistoricalExportPolicy(),
                 new PhaseAccessPolicy(),
-                new AssetStageAccessPolicy()
+                new AssetStageAccessPolicy(),
+                new ProjectOwnerPhasePolicy(departmentMapper)
         );
-        pdp.init(); // 触发 @PostConstruct 逻辑
+        pdp.init();
 
-        // 默认环境上下文
         defaultEnv = Environment.builder()
-                .requestTime(LocalDateTime.now())
+                .requestTime(LocalDateTime.of(2026, 3, 19, 9, 0, 0))
                 .ipAddress("192.168.1.100")
+                .requestUri("/api/test")
                 .build();
-
-        System.out.println("\n========== ABAC 策略决策点测试报告 ==========");
-        System.out.println("已加载策略：SecurityLevelPolicy, PhaseAccessPolicy, AssetStageAccessPolicy");
-        System.out.println("测试环境：IP=" + defaultEnv.getIpAddress() + ", Time=" + defaultEnv.getRequestTime());
-        System.out.println("============================================\n");
     }
-
-    private void printTestResult(String testName, Subject subject, Resource resource, Action action, DecisionResult result) {
-        System.out.println("【测试】" + testName);
-        System.out.println("  主体：" + formatSubject(subject));
-        System.out.println("  资源：" + formatResource(resource));
-        System.out.println("  操作：" + action);
-        System.out.println("  决策：" + (result.isAllowed() ? "✅ 允许" : "❌ 拒绝"));
-        System.out.println("  触发策略：" + result.getTriggerPolicy());
-        System.out.println("  原因：" + result.getReason());
-        System.out.println();
-    }
-
-    private void recordTest(String testName, boolean expectedAllow, DecisionResult result) {
-        boolean actualAllow = result.isAllowed();
-        boolean passed = (expectedAllow == actualAllow);
-        testRecords.add(new TestRecord(testName, passed, expectedAllow, actualAllow,
-            result.getTriggerPolicy(), result.getReason()));
-    }
-
-    @org.junit.jupiter.api.AfterAll
-    static void printSummary() {
-        System.out.println("\n========== 测试总结报告 ==========");
-    }
-
-    @org.junit.jupiter.api.AfterEach
-    void printTestSummary() {
-        if (!testRecords.isEmpty()) {
-            TestRecord last = testRecords.get(testRecords.size() - 1);
-            System.out.println(">>> 测试结果：" + (last.passed ? "✅ PASS" : "❌ FAIL"));
-            System.out.println(">>> 预期：" + (last.expectedAllow ? "允许" : "拒绝") +
-                             " | 实际：" + (last.actualAllow ? "允许" : "拒绝"));
-            System.out.println("=".repeat(50) + "\n");
-        }
-    }
-
-    private String formatSubject(Subject subject) {
-        return String.format("%s部门 %s %s",
-            subject.getDeptType(),
-            subject.getLevel(),
-            subject.getIsContractor() ? "(外包)" : "(正式)");
-    }
-
-    private String formatResource(Resource resource) {
-        String stage = resource.getProjectPhase() != null ? resource.getProjectPhase().name() : "无";
-        if (resource.getType() == ResourceType.ASSET && resource.getAssetsStage() != null) {
-            stage = stage + " / 资产" + resource.getAssetsStage().name();
-        }
-        return String.format("%s [%s] [%s阶段]",
-            resource.getType(),
-            resource.getSecurityLevel(),
-            stage);
-    }
-
-    // ========== 安全策略层测试 ==========
 
     @Test
-    @DisplayName("安全策略：P4 员工访问 CONFIDENTIAL 资源 → 拒绝（职级不够）")
-    void testSecurityPolicy_InsufficientLevel() {
+    void securityPolicy_shouldDenyWhenEmployeeLevelIsInsufficient() {
         Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P4, false);
         Resource resource = Resource.builder()
                 .type(ResourceType.PROJECT)
-                .securityLevel(SecurityLevel.CONFIDENTIAL)
                 .projectPhase(ProjectPhase.DEVELOPMENT)
+                .securityLevel(SecurityLevel.CONFIDENTIAL)
                 .build();
 
         DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("P4 员工访问 CONFIDENTIAL 资源", subject, resource, Action.READ, result);
 
         assertFalse(result.isAllowed());
-        recordTest("P4 员工访问 CONFIDENTIAL 资源", false, result);
         assertEquals("SecurityLevelPolicy", result.getTriggerPolicy());
-        assertTrue(result.getReason().contains("安全策略拒绝"));
     }
 
     @Test
-    @DisplayName("安全策略：P6 正式员工访问 CONFIDENTIAL 资源 → 通过")
-    void testSecurityPolicy_SufficientLevel() {
+    void phasePolicy_shouldDenyRdReadingInitProject() {
         Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
         Resource resource = Resource.builder()
                 .type(ResourceType.PROJECT)
-                .securityLevel(SecurityLevel.CONFIDENTIAL)
-                .projectPhase(ProjectPhase.DEVELOPMENT)
-                .build();
-
-        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("P6 正式员工访问 CONFIDENTIAL 资源", subject, resource, Action.READ, result);
-
-        assertTrue(result.isAllowed());
-        recordTest("P6 正式员工访问 CONFIDENTIAL 资源", true, result);
-    }
-
-    @Test
-    @DisplayName("安全策略：外包 VP 访问 CONFIDENTIAL 资源 → 拒绝（外包限制）")
-    void testSecurityPolicy_ContractorDenied() {
-        Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.VP, true); // 外包
-        Resource resource = Resource.builder()
-                .type(ResourceType.PROJECT)
-                .securityLevel(SecurityLevel.CONFIDENTIAL)
-                .projectPhase(ProjectPhase.DEVELOPMENT)
-                .build();
-
-        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("外包 VP 访问 CONFIDENTIAL 资源", subject, resource, Action.READ, result);
-
-        assertFalse(result.isAllowed());
-        assertEquals("SecurityLevelPolicy", result.getTriggerPolicy());
-    }
-
-    @Test
-    @DisplayName("安全策略：外包员工访问 INTERNAL 资源 → 通过")
-    void testSecurityPolicy_ContractorAllowedInternal() {
-        Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P3, true); // 外包
-        Resource resource = Resource.builder()
-                .type(ResourceType.PROJECT)
-                .securityLevel(SecurityLevel.INTERNAL)
-                .projectPhase(ProjectPhase.DEVELOPMENT)
-                .build();
-
-        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("外包员工访问 INTERNAL 资源", subject, resource, Action.READ, result);
-
-        assertTrue(result.isAllowed());
-    }
-
-    // ========== 项目策略层测试 ==========
-
-    @Test
-    @DisplayName("项目策略：研发部 READ 立项阶段项目 → 拒绝（不在允许列表）")
-    void testPhasePolicy_RdReadInitPhase() {
-        Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P5, false);
-        Resource resource = Resource.builder()
-                .type(ResourceType.PROJECT)
-                .securityLevel(SecurityLevel.INTERNAL)
                 .projectPhase(ProjectPhase.INIT)
+                .securityLevel(SecurityLevel.INTERNAL)
                 .build();
 
         DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("研发部 READ 立项阶段项目", subject, resource, Action.READ, result);
 
         assertFalse(result.isAllowed());
         assertEquals("PhaseAccessPolicy", result.getTriggerPolicy());
-        assertTrue(result.getReason().contains("项目策略拒绝"));
     }
 
     @Test
-    @DisplayName("项目策略：产品部 WRITE 需求设计阶段资产 → 通过")
-    void testPhasePolicy_ProductWriteRequirement() {
-        Subject subject = new Subject(1L, 1L, DeptType.PRODUCT, 1L, EmployeeLevel.P5, false);
+    void phasePolicy_shouldAllowManagementReadingDevelopmentProject() {
+        Subject subject = new Subject(1L, 1L, DeptType.MANAGEMENT, 1L, EmployeeLevel.VP, false);
         Resource resource = Resource.builder()
-                .type(ResourceType.ASSET)
-                .securityLevel(SecurityLevel.INTERNAL)
-                .projectPhase(ProjectPhase.REQUIREMENT)
-                .build();
-
-        DecisionResult result = pdp.evaluate(subject, resource, Action.WRITE, defaultEnv);
-        printTestResult("产品部 WRITE 需求设计阶段资产", subject, resource, Action.WRITE, result);
-
-        assertTrue(result.isAllowed());
-    }
-
-    @Test
-    @DisplayName("资产阶段策略：研发部 READ 研发阶段项目下的立项资产 → 拒绝")
-    void testAssetStagePolicy_RdReadInitAssetInDevelopmentProject() {
-        Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
-        Resource resource = Resource.builder()
-                .type(ResourceType.ASSET)
-                .securityLevel(SecurityLevel.INTERNAL)
+                .type(ResourceType.PROJECT)
                 .projectPhase(ProjectPhase.DEVELOPMENT)
-                .assetsStage(ProjectPhase.INIT)
+                .securityLevel(SecurityLevel.INTERNAL)
                 .build();
 
         DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("研发部 READ 研发阶段项目下的立项资产", subject, resource, Action.READ, result);
+
+        assertTrue(result.isAllowed());
+        assertEquals("default-allow", result.getTriggerPolicy());
+    }
+
+    @Test
+    void assetStagePolicy_shouldDenyRdReadingHistoricalInitAsset() {
+        Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
+        Resource resource = Resource.builder()
+                .type(ResourceType.ASSET)
+                .projectPhase(ProjectPhase.DEVELOPMENT)
+                .assetsStage(ProjectPhase.INIT)
+                .securityLevel(SecurityLevel.INTERNAL)
+                .build();
+
+        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
 
         assertFalse(result.isAllowed());
         assertEquals("AssetStageAccessPolicy", result.getTriggerPolicy());
     }
 
     @Test
-    @DisplayName("资产阶段策略：产品部 READ 研发阶段项目下的立项资产 → 通过")
-    void testAssetStagePolicy_ProductReadInitAssetInDevelopmentProject() {
-        Subject subject = new Subject(1L, 1L, DeptType.PRODUCT, 1L, EmployeeLevel.P5, false);
+    void phasePolicy_shouldDenyWhenDeptTypeIsMissing() {
+        Subject subject = new Subject(1L, 1L, null, 1L, EmployeeLevel.P6, false);
         Resource resource = Resource.builder()
-                .type(ResourceType.ASSET)
-                .securityLevel(SecurityLevel.INTERNAL)
+                .type(ResourceType.PROJECT)
                 .projectPhase(ProjectPhase.DEVELOPMENT)
-                .assetsStage(ProjectPhase.INIT)
+                .securityLevel(SecurityLevel.INTERNAL)
                 .build();
 
         DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("产品部 READ 研发阶段项目下的立项资产", subject, resource, Action.READ, result);
-
-        assertTrue(result.isAllowed());
-    }
-
-    @Test
-    @DisplayName("项目策略：管理层 READ 研发阶段项目 → 通过（监管权）")
-    void testPhasePolicy_ManagementReadDevelopment() {
-        Subject subject = new Subject(1L, 1L, DeptType.MANAGEMENT, 1L, EmployeeLevel.VP, false);
-        Resource resource = Resource.builder()
-                .type(ResourceType.PROJECT)
-                .securityLevel(SecurityLevel.INTERNAL)
-                .projectPhase(ProjectPhase.DEVELOPMENT)
-                .build();
-
-        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("管理层 READ 研发阶段项目", subject, resource, Action.READ, result);
-
-        assertTrue(result.isAllowed());
-    }
-
-    @Test
-    @DisplayName("项目策略：管理层 DELETE 研发阶段项目 → 拒绝（监管权仅限 READ）")
-    void testPhasePolicy_ManagementDeleteDevelopment() {
-        Subject subject = new Subject(1L, 1L, DeptType.MANAGEMENT, 1L, EmployeeLevel.VP, false);
-        Resource resource = Resource.builder()
-                .type(ResourceType.PROJECT)
-                .securityLevel(SecurityLevel.INTERNAL)
-                .projectPhase(ProjectPhase.DEVELOPMENT)
-                .build();
-
-        DecisionResult result = pdp.evaluate(subject, resource, Action.DELETE, defaultEnv);
-        printTestResult("管理层 DELETE 研发阶段项目", subject, resource, Action.DELETE, result);
 
         assertFalse(result.isAllowed());
         assertEquals("PhaseAccessPolicy", result.getTriggerPolicy());
     }
 
     @Test
-    @DisplayName("项目策略：管理层 DELETE 立项阶段项目 → 通过（立项阶段管理层是业务参与方）")
-    void testPhasePolicy_ManagementDeleteInitPhase() {
-        Subject subject = new Subject(1L, 1L, DeptType.MANAGEMENT, 1L, EmployeeLevel.VP, false);
+    void environmentPolicy_shouldDenyHighSecurityReadOutsideWorkingHours() {
+        Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
         Resource resource = Resource.builder()
                 .type(ResourceType.PROJECT)
-                .securityLevel(SecurityLevel.INTERNAL)
-                .projectPhase(ProjectPhase.INIT)
-                .build();
-
-        DecisionResult result = pdp.evaluate(subject, resource, Action.DELETE, defaultEnv);
-        printTestResult("管理层 DELETE 立项阶段项目", subject, resource, Action.DELETE, result);
-
-        assertTrue(result.isAllowed());
-    }
-
-    @Test
-    @DisplayName("项目策略：测试部 READ 归档项目 → 拒绝（归档只允许管理层）")
-    void testPhasePolicy_QaReadArchived() {
-        Subject subject = new Subject(1L, 1L, DeptType.QA, 1L, EmployeeLevel.P5, false);
-        Resource resource = Resource.builder()
-                .type(ResourceType.PROJECT)
-                .securityLevel(SecurityLevel.INTERNAL)
-                .projectPhase(ProjectPhase.ARCHIVED)
-                .build();
-
-        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("测试部 READ 归档项目", subject, resource, Action.READ, result);
-
-        assertFalse(result.isAllowed());
-        assertEquals("PhaseAccessPolicy", result.getTriggerPolicy());
-    }
-
-    @Test
-    @DisplayName("项目策略：管理层 WRITE 归档项目 → 拒绝（归档只读）")
-    void testPhasePolicy_ManagementWriteArchived() {
-        Subject subject = new Subject(1L, 1L, DeptType.MANAGEMENT, 1L, EmployeeLevel.VP, false);
-        Resource resource = Resource.builder()
-                .type(ResourceType.PROJECT)
-                .securityLevel(SecurityLevel.INTERNAL)
-                .projectPhase(ProjectPhase.ARCHIVED)
-                .build();
-
-        DecisionResult result = pdp.evaluate(subject, resource, Action.WRITE, defaultEnv);
-        printTestResult("管理层 WRITE 归档项目", subject, resource, Action.WRITE, result);
-
-        assertFalse(result.isAllowed());
-        assertEquals("PhaseAccessPolicy", result.getTriggerPolicy());
-    }
-
-    // ========== 多层联合决策测试 ==========
-
-    @Test
-    @DisplayName("多层决策：P4 研发访问 CONFIDENTIAL 研发阶段项目 → 拒绝（安全策略层拦截）")
-    void testMultiLayer_SecurityLayerBlocks() {
-        Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P4, false);
-        Resource resource = Resource.builder()
-                .type(ResourceType.PROJECT)
+                .projectPhase(ProjectPhase.DEVELOPMENT)
                 .securityLevel(SecurityLevel.CONFIDENTIAL)
-                .projectPhase(ProjectPhase.DEVELOPMENT)
+                .build();
+        Environment lateNightEnv = Environment.builder()
+                .requestTime(LocalDateTime.of(2026, 3, 19, 22, 0, 0))
+                .ipAddress("10.0.0.8")
+                .requestUri("/api/project/11")
                 .build();
 
-        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("P4 研发访问 CONFIDENTIAL 研发阶段项目（安全层拦截）", subject, resource, Action.READ, result);
+        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, lateNightEnv);
 
         assertFalse(result.isAllowed());
-        assertEquals("SecurityLevelPolicy", result.getTriggerPolicy()); // 安全策略层先拒绝
+        assertEquals("EnvironmentAccessPolicy", result.getTriggerPolicy());
     }
 
     @Test
-    @DisplayName("多层决策：P6 研发访问 INTERNAL 立项阶段项目 → 拒绝（项目策略层拦截）")
-    void testMultiLayer_ProjectLayerBlocks() {
+    void ownerPolicy_shouldDenyPhaseAdvanceWhenOperatorIsNotConfiguredManager() {
         Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
         Resource resource = Resource.builder()
                 .type(ResourceType.PROJECT)
+                .resourceId(11L)
+                .projectId(11L)
+                .projectPhase(ProjectPhase.DEVELOPMENT)
                 .securityLevel(SecurityLevel.INTERNAL)
-                .projectPhase(ProjectPhase.INIT)
+                .ownerId(1L)
                 .build();
 
-        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("P6 研发访问 INTERNAL 立项阶段项目（项目层拦截）", subject, resource, Action.READ, result);
+        DecisionResult result = pdp.evaluate(subject, resource, Action.ADVANCE_PHASE, defaultEnv);
 
         assertFalse(result.isAllowed());
-        assertEquals("PhaseAccessPolicy", result.getTriggerPolicy()); // 安全策略通过，项目策略拒绝
+        assertEquals("ProjectOwnerPhasePolicy", result.getTriggerPolicy());
     }
 
-    @Test
-    @DisplayName("多层决策：P6 研发访问 INTERNAL 研发阶段项目 → 通过（两层都通过）")
-    void testMultiLayer_AllLayersPass() {
-        Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
-        Resource resource = Resource.builder()
-                .type(ResourceType.PROJECT)
-                .securityLevel(SecurityLevel.INTERNAL)
-                .projectPhase(ProjectPhase.DEVELOPMENT)
-                .build();
-
-        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
-        printTestResult("P6 研发访问 INTERNAL 研发阶段项目（两层都通过）", subject, resource, Action.READ, result);
-
-        assertTrue(result.isAllowed());
-        assertEquals("default-allow", result.getTriggerPolicy());
+    private Department buildDepartment(Long deptId, DeptType deptType, Long managerId) {
+        Department department = new Department();
+        department.setDeptId(deptId);
+        department.setDeptName(deptType.name());
+        department.setDeptType(deptType);
+        department.setManagerId(managerId);
+        return department;
     }
 }

@@ -43,7 +43,7 @@ public class AssetStageAccessPolicy implements Policy {
         ProjectPhase assetsStage = resource.getAssetsStage();
         DeptType deptType = subject.getDeptType();
         if (assetsStage == null || deptType == null) {
-            return PolicyResult.ALLOW;
+            return PolicyResult.DENY;
         }
 
         if (assetsStage == ProjectPhase.ARCHIVED) {

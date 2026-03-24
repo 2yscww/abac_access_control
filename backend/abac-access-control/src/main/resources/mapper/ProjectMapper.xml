@@ -11,12 +11,14 @@
             project_name,
             project_phase,
             security_level,
-            created_by_employee_id
+            created_by_employee_id,
+            owner_id
         ) VALUES (
             #{projectName},
             #{projectPhase},
             #{securityLevel},
-            #{createdByEmployeeId}
+            #{createdByEmployeeId},
+            #{ownerId}
         )
     </insert>
 
@@ -27,6 +29,7 @@
             project_phase,
             security_level,
             created_by_employee_id,
+            owner_id,
             created_at,
             updated_at
         FROM projects
@@ -40,6 +43,7 @@
             project_phase,
             security_level,
             created_by_employee_id,
+            owner_id,
             created_at,
             updated_at
         FROM projects
@@ -53,6 +57,7 @@
             project_phase,
             security_level,
             created_by_employee_id,
+            owner_id,
             created_at,
             updated_at
         FROM projects
@@ -95,10 +100,38 @@
         </where>
     </select>
 
+    <select id="selectByPhaseCodes" resultType="com.xie.platform.model.Projects">
+        SELECT
+            project_id,
+            project_name,
+            project_phase,
+            security_level,
+            created_by_employee_id,
+            owner_id,
+            created_at,
+            updated_at
+        FROM projects
+        WHERE project_phase IN
+        <foreach collection="phaseCodes" item="phaseCode" open="(" separator="," close=")">
+            #{phaseCode}
+        </foreach>
+        ORDER BY project_id
+    </select>
+
     <update id="updatePhase">
         UPDATE projects
-        SET project_phase = #{newPhase}
+        SET project_phase = #{newPhase},
+            owner_id = #{ownerId}
         WHERE project_id = #{projectId}
+    </update>
+
+    <update id="updateOwnerByPhaseCodes">
+        UPDATE projects
+        SET owner_id = #{ownerId}
+        WHERE project_phase IN
+        <foreach collection="phaseCodes" item="phaseCode" open="(" separator="," close=")">
+            #{phaseCode}
+        </foreach>
     </update>
 
     <delete id="deleteById">

@@ -5,13 +5,45 @@
 
 <mapper namespace="com.xie.platform.mapper.DepartmentMapper">
 
-    <!-- 根据部门ID查询 -->
     <select id="selectById" resultType="com.xie.platform.model.Department">
         SELECT
             dept_id,
-            dept_name
+            dept_name,
+            dept_type,
+            manager_id
         FROM departments
         WHERE dept_id = #{deptId}
+    </select>
+
+    <update id="updateManagerId">
+        UPDATE departments
+        SET manager_id = #{managerId}
+        WHERE dept_id = #{deptId}
+    </update>
+
+    <select id="selectByManagerId" resultType="com.xie.platform.model.Department">
+        SELECT
+            dept_id,
+            dept_name,
+            dept_type,
+            manager_id
+        FROM departments
+        WHERE manager_id = #{managerId}
+        ORDER BY dept_id
+    </select>
+
+    <select id="selectWithInactiveManager" resultType="com.xie.platform.dto.DepartmentManagerHandoverTodoDTO">
+        SELECT
+            d.dept_id,
+            d.dept_name,
+            d.dept_type,
+            d.manager_id,
+            e.employee_code AS manager_code,
+            e.employee_name AS manager_name
+        FROM departments d
+        INNER JOIN employees e ON e.employee_id = d.manager_id
+        WHERE e.status = 'INACTIVE'
+        ORDER BY d.dept_id
     </select>
 
 </mapper>

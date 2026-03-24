@@ -1,9 +1,11 @@
-package com.xie.platform.service.impl;
+﻿package com.xie.platform.service.impl;
 
 import com.xie.platform.access.action.Action;
+import com.xie.platform.access.pdp.DecisionResult;
 import com.xie.platform.access.pep.PolicyEnforcementPoint;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.dto.CreateAssetDTO;
+import com.xie.platform.dto.UploadAssetDTO;
 import com.xie.platform.exception.BizException;
 import com.xie.platform.mapper.ProjectAssetsMapper;
 import com.xie.platform.mapper.ProjectMapper;
@@ -11,14 +13,20 @@ import com.xie.platform.model.ProjectAssets;
 import com.xie.platform.model.Projects;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
+import com.xie.platform.service.FileStorageService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -40,35 +48,34 @@ class ProjectAssetsServiceImplTest {
     @Mock
     private PolicyEnforcementPoint pep;
 
+    @Mock
+    private FileStorageService fileStorageService;
+
     @InjectMocks
     private ProjectAssetsServiceImpl projectAssetsService;
 
     @Test
-    void createAsset_shouldRejectHistoricalStageForNormalCreation() {
+    void createAsset_shouldRejectFutureStage() {
         CreateAssetDTO dto = buildCreateAssetDto();
-        dto.setAssetsStage(ProjectPhase.INIT.getCode());
+        dto.setAssetsStage(ProjectPhase.DEVELOPMENT.getCode());
 
         Projects project = new Projects();
         project.setProjectId(dto.getProjectId());
-        project.setProjectPhase(ProjectPhase.DEVELOPMENT);
+        project.setProjectPhase(ProjectPhase.REQUIREMENT);
         project.setSecurityLevel(SecurityLevel.INTERNAL);
 
         when(projectMapper.selectById(dto.getProjectId())).thenReturn(project);
 
-        BizException exception = assertThrows(
-                BizException.class,
-                () -> projectAssetsService.createAsset(dto, 7L)
-        );
+        assertThrows(BizException.class, () -> projectAssetsService.createAsset(dto, 7L));
 
-        assertEquals("资产产生阶段必须与当前项目阶段一致", exception.getMessage());
         verifyNoInteractions(pep);
         verify(projectAssetsMapper, never()).insert(any(ProjectAssets.class));
     }
 
     @Test
-    void createAsset_shouldPassAssetsStageIntoPepResource() {
+    void createAsset_shouldAllowHistoricalStageAndPassItIntoPepResource() {
         CreateAssetDTO dto = buildCreateAssetDto();
-        dto.setAssetsStage(ProjectPhase.DEVELOPMENT.getCode());
+        dto.setAssetsStage(ProjectPhase.INIT.getCode());
 
         Projects project = new Projects();
         project.setProjectId(dto.getProjectId());
@@ -91,8 +98,105 @@ class ProjectAssetsServiceImplTest {
 
         Resource resource = resourceCaptor.getValue();
         assertEquals(ProjectPhase.DEVELOPMENT, resource.getProjectPhase());
-        assertEquals(ProjectPhase.DEVELOPMENT, resource.getAssetsStage());
+        assertEquals(ProjectPhase.INIT, resource.getAssetsStage());
         assertEquals(SecurityLevel.INTERNAL, resource.getSecurityLevel());
+    }
+
+    @Test
+    void uploadAsset_shouldPersistStoragePathAndActualFileSize() {
+        UploadAssetDTO dto = buildUploadAssetDto();
+        Projects project = new Projects();
+        project.setProjectId(dto.getProjectId());
+        project.setProjectPhase(ProjectPhase.DEVELOPMENT);
+        project.setSecurityLevel(SecurityLevel.INTERNAL);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "budget-sheet.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "demo-content".getBytes()
+        );
+
+        when(projectMapper.selectById(dto.getProjectId())).thenReturn(project);
+        when(fileStorageService.uploadAsset(any(), eq(dto.getProjectId()), eq(7L)))
+                .thenReturn("minio://abac-assets/project-assets/1/demo.xlsx");
+        doAnswer(invocation -> {
+            ProjectAssets asset = invocation.getArgument(0);
+            asset.setAssetId(101L);
+            return 1;
+        }).when(projectAssetsMapper).insert(any(ProjectAssets.class));
+
+        Long assetId = projectAssetsService.uploadAsset(dto, file, 7L);
+
+        assertEquals(101L, assetId);
+
+        ArgumentCaptor<ProjectAssets> assetCaptor = ArgumentCaptor.forClass(ProjectAssets.class);
+        verify(projectAssetsMapper).insert(assetCaptor.capture());
+        assertEquals("minio://abac-assets/project-assets/1/demo.xlsx", assetCaptor.getValue().getFilePath());
+        assertEquals(file.getSize(), assetCaptor.getValue().getFileSize());
+    }
+
+    @Test
+    void getAssetById_shouldMaskFilePath() {
+        ProjectAssets asset = buildAsset(21L, 11L, "oss://bucket/project/budget-sheet.xlsx");
+
+        when(projectAssetsMapper.selectById(21L)).thenReturn(asset);
+
+        ProjectAssets result = projectAssetsService.getAssetById(21L, 7L);
+
+        assertEquals(21L, result.getAssetId());
+        assertNull(result.getFilePath());
+        verify(pep).checkAssetAccess(7L, 21L, Action.READ);
+    }
+
+    @Test
+    void getAssetsByProjectId_shouldFilterDeniedAssetAndMaskFilePath() {
+        ProjectAssets allowedAsset = buildAsset(21L, 11L, "oss://bucket/project/allowed.docx");
+        ProjectAssets deniedAsset = buildAsset(22L, 11L, "oss://bucket/project/denied.docx");
+
+        when(projectAssetsMapper.selectByProjectId(11L)).thenReturn(List.of(allowedAsset, deniedAsset));
+        when(pep.decideAssetAccess(7L, 21L, Action.READ)).thenReturn(DecisionResult.allow());
+        when(pep.decideAssetAccess(7L, 22L, Action.READ))
+                .thenReturn(DecisionResult.deny("SecurityLevelPolicy", "denied"));
+
+        List<ProjectAssets> result = projectAssetsService.getAssetsByProjectId(11L, 7L);
+
+        assertEquals(1, result.size());
+        assertEquals(21L, result.get(0).getAssetId());
+        assertNull(result.get(0).getFilePath());
+        verify(pep).checkProjectAccess(7L, 11L, Action.READ);
+    }
+
+    @Test
+    void exportAssetReference_shouldCheckExportAccessAndReturnExternalFilePath() {
+        ProjectAssets asset = buildAsset(21L, 11L, "gitlab://group/project/repo");
+
+        when(projectAssetsMapper.selectById(21L)).thenReturn(asset);
+        when(fileStorageService.isManagedPath("gitlab://group/project/repo")).thenReturn(false);
+
+        Map<String, Object> result = projectAssetsService.exportAssetReference(21L, 7L);
+
+        assertEquals(21L, result.get("assetId"));
+        assertEquals("design-doc", result.get("assetName"));
+        assertEquals("gitlab://group/project/repo", result.get("filePath"));
+        assertEquals("EXTERNAL_URL", result.get("storageType"));
+        verify(pep).checkAssetAccess(7L, 21L, Action.EXPORT);
+    }
+
+    @Test
+    void exportAssetReference_shouldReturnPresignedUrlForManagedPath() {
+        ProjectAssets asset = buildAsset(22L, 11L, "minio://abac-assets/project-assets/1/demo.xlsx");
+
+        when(projectAssetsMapper.selectById(22L)).thenReturn(asset);
+        when(fileStorageService.isManagedPath("minio://abac-assets/project-assets/1/demo.xlsx")).thenReturn(true);
+        when(fileStorageService.generateDownloadUrl("minio://abac-assets/project-assets/1/demo.xlsx"))
+                .thenReturn("https://minio.example.com/presigned/demo");
+
+        Map<String, Object> result = projectAssetsService.exportAssetReference(22L, 7L);
+
+        assertEquals("https://minio.example.com/presigned/demo", result.get("filePath"));
+        assertEquals("https://minio.example.com/presigned/demo", result.get("downloadUrl"));
+        assertEquals("MINIO", result.get("storageType"));
     }
 
     private CreateAssetDTO buildCreateAssetDto() {
@@ -100,9 +204,32 @@ class ProjectAssetsServiceImplTest {
         dto.setProjectId(1L);
         dto.setAssetName("budget-sheet");
         dto.setAssetsType(1);
+        dto.setAssetsStage(ProjectPhase.REQUIREMENT.getCode());
         dto.setSecurityLevel(SecurityLevel.INTERNAL.getLevel());
         dto.setFilePath("oss://bucket/project/budget-sheet.xlsx");
         dto.setDescription("external reference");
         return dto;
+    }
+
+    private UploadAssetDTO buildUploadAssetDto() {
+        UploadAssetDTO dto = new UploadAssetDTO();
+        dto.setProjectId(1L);
+        dto.setAssetName("budget-sheet");
+        dto.setAssetsType(1);
+        dto.setAssetsStage(ProjectPhase.REQUIREMENT.getCode());
+        dto.setSecurityLevel(SecurityLevel.INTERNAL.getLevel());
+        dto.setDescription("uploaded into minio");
+        return dto;
+    }
+
+    private ProjectAssets buildAsset(Long assetId, Long projectId, String filePath) {
+        ProjectAssets asset = new ProjectAssets();
+        asset.setAssetId(assetId);
+        asset.setProjectId(projectId);
+        asset.setAssetName("design-doc");
+        asset.setAssetsStage(ProjectPhase.DEVELOPMENT);
+        asset.setSecurityLevel(SecurityLevel.INTERNAL);
+        asset.setFilePath(filePath);
+        return asset;
     }
 }

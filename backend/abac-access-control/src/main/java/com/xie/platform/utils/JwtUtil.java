@@ -21,6 +21,8 @@ import org.springframework.beans.factory.annotation.Value;
 
 @Component
 public class JwtUtil {
+    public static final String CHANGE_PASSWORD_SCOPE = "CHANGE_PASSWORD";
+
     @Value("${security.jwt.secret}")
     private String secret;
 
@@ -63,11 +65,15 @@ public class JwtUtil {
     public String generateTempToken(Long employeeId) {
         return Jwts.builder()
                 .setSubject(employeeId.toString())
-                .claim("scope", "CHANGE_PASSWORD")
+                .claim("scope", CHANGE_PASSWORD_SCOPE)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 10 * 60 * 1000L))
                 .signWith(getKey(), SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public boolean isChangePasswordToken(Claims claims) {
+        return CHANGE_PASSWORD_SCOPE.equals(claims.get("scope", String.class));
     }
 
     /**
@@ -76,7 +82,7 @@ public class JwtUtil {
      */
     public Long parseAndValidateTempToken(String token) {
         Claims claims = parseToken(token);
-        if (!"CHANGE_PASSWORD".equals(claims.get("scope", String.class))) {
+        if (!isChangePasswordToken(claims)) {
             throw new IllegalArgumentException("无效的临时凭证");
         }
         return Long.parseLong(claims.getSubject());

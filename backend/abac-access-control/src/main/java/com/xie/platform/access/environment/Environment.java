@@ -25,4 +25,10 @@ public class Environment {
      * 用于判断是否来自公司内网或可信网段
      */
     private String ipAddress;
+
+    /**
+     * 请求路径
+     * 便于后续审计时快速定位“这条决策是由哪个接口触发的”
+     */
+    private String requestUri;
 }

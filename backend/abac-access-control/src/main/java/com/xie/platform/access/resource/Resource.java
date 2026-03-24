@@ -21,6 +21,20 @@ public class Resource {
     private ResourceType type;
 
     /**
+     * 当前资源的业务主键
+     * - PROJECT: projectId
+     * - ASSET: assetId
+     * - 创建类操作: 可能为空
+     */
+    private Long resourceId;
+
+    /**
+     * 所属项目 ID
+     * 对项目资源来说等于 projectId，对资产资源来说等于资产所属项目。
+     */
+    private Long projectId;
+
+    /**
      * 资源所属项目的当前阶段
      * 这是阶段访问控制矩阵的核心判断依据
      */
@@ -43,6 +57,12 @@ public class Resource {
      * 用于判断"是否是自己创建的资源"这类规则
      */
     private Long creatorId;
+
+    /**
+     * 当前阶段负责人（员工ID）
+     * 用于判断谁拥有阶段推进的拍板权
+     */
+    private Long ownerId;
 
     /**
      * 资源所属部门 ID

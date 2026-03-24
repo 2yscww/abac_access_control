@@ -1,42 +1,34 @@
 package com.xie.platform.mapper;
 
+import com.xie.platform.dto.EmployeeOptionDTO;
 import com.xie.platform.model.Employees;
+import com.xie.platform.model.enumValue.EmployeeStatus;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
 
 @Mapper
 public interface EmployeesMapper {
 
-    /**
-     * 根据员工登录名查询员工
-     */
     Employees selectByEmployeeName(@Param("employeeName") String employeeName);
 
-    /**
-     * 根据工号查询员工
-     */
     Employees selectByEmployeeCode(@Param("employeeCode") String employeeCode);
 
-    /**
-     * 根据员工 ID 查询员工（后面 ABAC 会用）
-     */
     Employees selectByEmployeeId(@Param("employeeId") Long employeeId);
 
-    /**
-     * 更新密码 + 清除首次登录标记
-     */
     int updatePassword(
             @Param("employeeId") Long employeeId,
             @Param("password") String password
     );
 
-    /**
-     * 新增员工
-     */
     int insert(Employees employee);
 
-    /**
-     * 回填工号
-     */
     int updateEmployeeCode(@Param("employeeId") Long employeeId, @Param("employeeCode") String employeeCode);
+
+    int updateStatus(@Param("employeeId") Long employeeId, @Param("status") EmployeeStatus status);
+
+    List<EmployeeOptionDTO> selectActiveOptions(@Param("keyword") String keyword);
+
+    List<EmployeeOptionDTO> selectActiveOptionsByDeptId(@Param("deptId") Long deptId);
 }

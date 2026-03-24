@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.xie.platform.mapper.AuditLogMapper">
+
+    <insert id="insert" parameterType="com.xie.platform.model.AuditLog"
+            useGeneratedKeys="true" keyProperty="logId">
+        INSERT INTO audit_logs (
+            employee_id,
+            resource_type,
+            resource_id,
+            project_id,
+            action,
+            decision,
+            trigger_policy,
+            deny_reason,
+            project_phase,
+            assets_stage,
+            security_level,
+            request_ip,
+            request_uri,
+            request_time,
+            detail_json
+        ) VALUES (
+            #{employeeId},
+            #{resourceType},
+            #{resourceId},
+            #{projectId},
+            #{action},
+            #{decision},
+            #{triggerPolicy},
+            #{denyReason},
+            #{projectPhase},
+            #{assetsStage},
+            #{securityLevel},
+            #{requestIp},
+            #{requestUri},
+            #{requestTime},
+            #{detailJson}
+        )
+    </insert>
+
+    <select id="selectByCondition" resultType="com.xie.platform.model.AuditLog">
+        SELECT
+            log_id,
+            employee_id,
+            resource_type,
+            resource_id,
+            project_id,
+            action,
+            decision,
+            trigger_policy,
+            deny_reason,
+            project_phase,
+            assets_stage,
+            security_level,
+            request_ip,
+            request_uri,
+            request_time,
+            detail_json
+        FROM audit_logs
+        <where>
+            <if test="employeeId != null">
+                AND employee_id = #{employeeId}
+            </if>
+            <if test="resourceType != null and resourceType != ''">
+                AND resource_type = #{resourceType}
+            </if>
+            <if test="resourceId != null">
+                AND resource_id = #{resourceId}
+            </if>
+            <if test="projectId != null">
+                AND project_id = #{projectId}
+            </if>
+            <if test="action != null and action != ''">
+                AND action = #{action}
+            </if>
+            <if test="decision != null and decision != ''">
+                AND decision = #{decision}
+            </if>
+            <if test="securityLevel != null">
+                AND security_level = #{securityLevel}
+            </if>
+            <if test="startTime != null">
+                AND request_time <![CDATA[>=]]> #{startTime}
+            </if>
+            <if test="endTime != null">
+                AND request_time <![CDATA[<=]]> #{endTime}
+            </if>
+        </where>
+        ORDER BY request_time DESC, log_id DESC
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="countByCondition" resultType="int">
+        SELECT COUNT(*)
+        FROM audit_logs
+        <where>
+            <if test="employeeId != null">
+                AND employee_id = #{employeeId}
+            </if>
+            <if test="resourceType != null and resourceType != ''">
+                AND resource_type = #{resourceType}
+            </if>
+            <if test="resourceId != null">
+                AND resource_id = #{resourceId}
+            </if>
+            <if test="projectId != null">
+                AND project_id = #{projectId}
+            </if>
+            <if test="action != null and action != ''">
+                AND action = #{action}
+            </if>
+            <if test="decision != null and decision != ''">
+                AND decision = #{decision}
+            </if>
+            <if test="securityLevel != null">
+                AND security_level = #{securityLevel}
+            </if>
+            <if test="startTime != null">
+                AND request_time <![CDATA[>=]]> #{startTime}
+            </if>
+            <if test="endTime != null">
+                AND request_time <![CDATA[<=]]> #{endTime}
+            </if>
+        </where>
+    </select>
+
+    <select id="countRecentAllowedActions" resultType="int">
+        SELECT COUNT(*)
+        FROM audit_logs
+        WHERE employee_id = #{employeeId}
+          AND action = #{action}
+          AND decision = 'ALLOW'
+          AND request_time <![CDATA[>=]]> #{startTime}
+        <if test="resourceType != null and resourceType != ''">
+          AND resource_type = #{resourceType}
+        </if>
+    </select>
+</mapper>

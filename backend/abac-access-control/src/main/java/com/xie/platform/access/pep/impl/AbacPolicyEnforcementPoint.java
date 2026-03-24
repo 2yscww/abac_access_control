@@ -18,6 +18,7 @@ import com.xie.platform.model.Department;
 import com.xie.platform.model.Employees;
 import com.xie.platform.model.ProjectAssets;
 import com.xie.platform.model.Projects;
+import com.xie.platform.service.AuditLogService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,12 @@ import java.time.LocalDateTime;
 
 @Component
 public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
+
+    private enum AuditLogMode {
+        NONE,
+        DENY_ONLY,
+        ALL
+    }
 
     @Autowired
     private PolicyDecisionPoint pdp;
@@ -44,16 +51,19 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
     @Autowired
     private ProjectAssetsMapper projectAssetsMapper;
 
+    @Autowired
+    private AuditLogService auditLogService;
+
     @Override
     public DecisionResult decideAccess(Long employeeId, Resource resource, Action action) {
-        Subject subject = buildSubject(employeeId);
-        Environment environment = buildEnvironment();
-        return pdp.evaluate(subject, resource, action, environment);
+        // decide* is used by list filtering paths, so only denied results are persisted.
+        return evaluateAccess(employeeId, resource, action, AuditLogMode.DENY_ONLY);
     }
 
     @Override
     public void checkAccess(Long employeeId, Resource resource, Action action) {
-        DecisionResult result = decideAccess(employeeId, resource, action);
+        // check* represents an explicit operation request and should leave a full audit trail.
+        DecisionResult result = evaluateAccess(employeeId, resource, action, AuditLogMode.ALL);
         throwIfDenied(result);
     }
 
@@ -65,7 +75,8 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
 
     @Override
     public DecisionResult checkProjectAccess(Long employeeId, Long projectId, Action action) {
-        DecisionResult result = decideProjectAccess(employeeId, projectId, action);
+        Resource resource = buildResourceForProject(projectId);
+        DecisionResult result = evaluateAccess(employeeId, resource, action, AuditLogMode.ALL);
         throwIfDenied(result);
         return result;
     }
@@ -78,9 +89,30 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
 
     @Override
     public DecisionResult checkAssetAccess(Long employeeId, Long assetId, Action action) {
-        DecisionResult result = decideAssetAccess(employeeId, assetId, action);
+        Resource resource = buildResourceForAsset(assetId);
+        DecisionResult result = evaluateAccess(employeeId, resource, action, AuditLogMode.ALL);
         throwIfDenied(result);
         return result;
+    }
+
+    private DecisionResult evaluateAccess(Long employeeId, Resource resource, Action action, AuditLogMode auditLogMode) {
+        Subject subject = buildSubject(employeeId);
+        Environment environment = buildEnvironment();
+        DecisionResult result = pdp.evaluate(subject, resource, action, environment);
+
+        if (shouldWriteAuditLog(result, auditLogMode)) {
+            auditLogService.recordDecision(employeeId, resource, action, environment, result);
+        }
+        return result;
+    }
+
+    private boolean shouldWriteAuditLog(DecisionResult result, AuditLogMode auditLogMode) {
+        // decide* is used for list filtering, so only denied results are recorded there.
+        return switch (auditLogMode) {
+            case NONE -> false;
+            case DENY_ONLY -> !result.isAllowed();
+            case ALL -> true;
+        };
     }
 
     private void throwIfDenied(DecisionResult result) {
@@ -118,9 +150,12 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
 
         return Resource.builder()
                 .type(ResourceType.PROJECT)
+                .resourceId(project.getProjectId())
+                .projectId(project.getProjectId())
                 .projectPhase(project.getProjectPhase())
                 .securityLevel(project.getSecurityLevel())
                 .creatorId(project.getCreatedByEmployeeId())
+                .ownerId(project.getOwnerId())
                 .deptId(null)
                 .build();
     }
@@ -138,10 +173,13 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
 
         return Resource.builder()
                 .type(ResourceType.ASSET)
+                .resourceId(asset.getAssetId())
+                .projectId(asset.getProjectId())
                 .projectPhase(project.getProjectPhase())
                 .assetsStage(asset.getAssetsStage())
                 .securityLevel(asset.getSecurityLevel())
                 .creatorId(asset.getCreatedByEmployeeId())
+                .ownerId(project.getOwnerId())
                 .deptId(null)
                 .build();
     }
@@ -156,6 +194,11 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
                 ipAddress = getClientIpAddress(request);
+                return Environment.builder()
+                        .requestTime(requestTime)
+                        .ipAddress(ipAddress)
+                        .requestUri(request.getRequestURI())
+                        .build();
             }
         } catch (Exception ignored) {
         }
@@ -163,6 +206,7 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
         return Environment.builder()
                 .requestTime(requestTime)
                 .ipAddress(ipAddress)
+                .requestUri(null)
                 .build();
     }
 

@@ -8,8 +8,14 @@ import com.xie.platform.dto.CreateProjectDTO;
 import com.xie.platform.dto.ProjectQueryDTO;
 import com.xie.platform.dto.UpdateProjectPhaseDTO;
 import com.xie.platform.exception.BizException;
+import com.xie.platform.mapper.DepartmentMapper;
+import com.xie.platform.mapper.EmployeesMapper;
 import com.xie.platform.mapper.ProjectMapper;
+import com.xie.platform.model.Department;
+import com.xie.platform.model.Employees;
 import com.xie.platform.model.Projects;
+import com.xie.platform.model.enumValue.DeptType;
+import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
 import com.xie.platform.service.ProjectService;
@@ -28,6 +34,12 @@ public class ProjectServiceImpl implements ProjectService {
     private ProjectMapper projectMapper;
 
     @Autowired
+    private EmployeesMapper employeesMapper;
+
+    @Autowired
+    private DepartmentMapper departmentMapper;
+
+    @Autowired
     private PolicyEnforcementPoint pep;
 
     @Override
@@ -38,6 +50,9 @@ public class ProjectServiceImpl implements ProjectService {
         }
         if (dto.getSecurityLevel() == null) {
             throw new BizException("项目密级不能为空");
+        }
+        if (dto.getOwnerId() == null) {
+            throw new BizException("当前阶段负责人不能为空");
         }
 
         Projects existProject = projectMapper.selectByName(dto.getProjectName());
@@ -63,13 +78,17 @@ public class ProjectServiceImpl implements ProjectService {
             }
         }
 
+        validateStageOwner(projectPhase, dto.getOwnerId());
+
         pep.checkAccess(
                 creatorEmployeeId,
                 Resource.builder()
                         .type(ResourceType.PROJECT)
+                        .projectId(null)
                         .projectPhase(projectPhase)
                         .securityLevel(securityLevel)
                         .creatorId(creatorEmployeeId)
+                        .ownerId(dto.getOwnerId())
                         .build(),
                 Action.WRITE
         );
@@ -79,6 +98,7 @@ public class ProjectServiceImpl implements ProjectService {
         project.setProjectPhase(projectPhase);
         project.setSecurityLevel(securityLevel);
         project.setCreatedByEmployeeId(creatorEmployeeId);
+        project.setOwnerId(dto.getOwnerId());
 
         projectMapper.insert(project);
         return project.getProjectId();
@@ -121,6 +141,9 @@ public class ProjectServiceImpl implements ProjectService {
         if (dto.getNewPhase() == null) {
             throw new BizException("新阶段不能为空");
         }
+        if (dto.getNextOwnerId() == null) {
+            throw new BizException("目标阶段负责人不能为空");
+        }
 
         pep.checkProjectAccess(employeeId, dto.getProjectId(), Action.ADVANCE_PHASE);
 
@@ -140,7 +163,8 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BizException("已归档项目不能修改阶段");
         }
 
-        projectMapper.updatePhase(dto.getProjectId(), newPhase.getCode());
+        validateStageOwner(newPhase, dto.getNextOwnerId());
+        projectMapper.updatePhase(dto.getProjectId(), newPhase.getCode(), dto.getNextOwnerId());
     }
 
     @Override
@@ -174,10 +198,50 @@ public class ProjectServiceImpl implements ProjectService {
     private Resource buildProjectResource(Projects project) {
         return Resource.builder()
                 .type(ResourceType.PROJECT)
+                .resourceId(project.getProjectId())
+                .projectId(project.getProjectId())
                 .projectPhase(project.getProjectPhase())
                 .securityLevel(project.getSecurityLevel())
                 .creatorId(project.getCreatedByEmployeeId())
+                .ownerId(project.getOwnerId())
                 .build();
+    }
+
+    private void validateStageOwner(ProjectPhase projectPhase, Long ownerId) {
+        Employees owner = employeesMapper.selectByEmployeeId(ownerId);
+        if (owner == null) {
+            throw new BizException("阶段负责人不存在");
+        }
+        if (owner.getStatus() != EmployeeStatus.ACTIVE) {
+            throw new BizException("阶段负责人状态不可用");
+        }
+
+        Department department = departmentMapper.selectById(owner.getDeptId());
+        if (department == null) {
+            throw new BizException("阶段负责人所属部门不存在");
+        }
+
+        DeptType expectedDeptType = getStageOwnerDept(projectPhase);
+        if (department.getDeptType() != expectedDeptType) {
+            throw new BizException("目标负责人不属于阶段主责部门：" + expectedDeptType.getDesc());
+        }
+        if (department.getManagerId() == null) {
+            throw new BizException("阶段主责部门尚未配置 manager_id：" + expectedDeptType.getDesc());
+        }
+        if (!department.getManagerId().equals(ownerId)) {
+            throw new BizException("目标负责人必须等于阶段主责部门的 manager_id");
+        }
+    }
+
+    private DeptType getStageOwnerDept(ProjectPhase projectPhase) {
+        return switch (projectPhase) {
+            case INIT -> DeptType.MANAGEMENT;
+            case REQUIREMENT -> DeptType.PRODUCT;
+            case DEVELOPMENT -> DeptType.RD;
+            case TEST -> DeptType.QA;
+            case RELEASE -> DeptType.OPS;
+            case ARCHIVED -> DeptType.MANAGEMENT;
+        };
     }
 
     private Map<String, Object> buildPageResult(List<?> data, int pageNum, int pageSize) {

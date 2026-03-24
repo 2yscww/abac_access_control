@@ -48,7 +48,7 @@ public class PhaseAccessPolicy implements Policy {
 
         // 资源未关联项目阶段，或主体部门信息缺失，本条规则不介入，直接放行
         if (phase == null || deptType == null) {
-            return PolicyResult.ALLOW;
+            return PolicyResult.DENY;
         }
 
         // ── 归档阶段 ──────────────────────────────────────────────────────────
