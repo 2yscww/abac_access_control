@@ -24,7 +24,7 @@ public class AbacAccessControlApplication {
 
 		// TODO 现在项目内应该给部门表添加负责人
 
-		// TODO 后续应该创建一张新表，为项目成员组
+		// TODO 将项目成员组正式拉入业务流程中
 
 		// 创建加密器
 		PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();

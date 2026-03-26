@@ -5,13 +5,13 @@ import com.xie.platform.access.environment.Environment;
 import com.xie.platform.access.policy.Policy;
 import com.xie.platform.access.policy.PolicyLayer;
 import com.xie.platform.access.policy.PolicyResult;
+import com.xie.platform.access.policy.support.ProjectPhaseAccessRules;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.access.subject.Subject;
 import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import org.springframework.stereotype.Component;
 
-import java.util.EnumSet;
 import java.util.Set;
 
 /**
@@ -39,6 +39,11 @@ public class PhaseAccessPolicy implements Policy {
     @Override
     public PolicyLayer getLayer() {
         return PolicyLayer.PROJECT;
+    }
+
+    @Override
+    public int getOrder() {
+        return 20;
     }
 
     @Override
@@ -81,13 +86,6 @@ public class PhaseAccessPolicy implements Policy {
      * 其余阶段的管理层监管权（只读）由上层逻辑单独处理。
      */
     private Set<DeptType> getAllowedDepts(ProjectPhase phase) {
-        switch (phase) {
-            case INIT:        return EnumSet.of(DeptType.PRODUCT, DeptType.MANAGEMENT);
-            case REQUIREMENT: return EnumSet.of(DeptType.PRODUCT, DeptType.RD);
-            case DEVELOPMENT: return EnumSet.of(DeptType.RD,      DeptType.PRODUCT);
-            case TEST:        return EnumSet.of(DeptType.QA,       DeptType.RD);
-            case RELEASE:     return EnumSet.of(DeptType.OPS,      DeptType.RD);
-            default:          return EnumSet.noneOf(DeptType.class);
-        }
+        return ProjectPhaseAccessRules.getAllowedDepts(phase);
     }
 }

@@ -5,6 +5,7 @@ import com.xie.platform.access.environment.Environment;
 import com.xie.platform.access.policy.Policy;
 import com.xie.platform.access.policy.PolicyLayer;
 import com.xie.platform.access.policy.PolicyResult;
+import com.xie.platform.access.policy.support.ProjectPhaseAccessRules;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.access.resource.ResourceType;
 import com.xie.platform.access.subject.Subject;
@@ -12,7 +13,6 @@ import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import org.springframework.stereotype.Component;
 
-import java.util.EnumSet;
 import java.util.Set;
 
 /**
@@ -32,6 +32,11 @@ public class AssetStageAccessPolicy implements Policy {
     @Override
     public PolicyLayer getLayer() {
         return PolicyLayer.PROJECT;
+    }
+
+    @Override
+    public int getOrder() {
+        return 30;
     }
 
     @Override
@@ -66,13 +71,6 @@ public class AssetStageAccessPolicy implements Policy {
     }
 
     private Set<DeptType> getAllowedDepts(ProjectPhase assetsStage) {
-        switch (assetsStage) {
-            case INIT:        return EnumSet.of(DeptType.PRODUCT, DeptType.MANAGEMENT);
-            case REQUIREMENT: return EnumSet.of(DeptType.PRODUCT, DeptType.RD);
-            case DEVELOPMENT: return EnumSet.of(DeptType.RD, DeptType.PRODUCT);
-            case TEST:        return EnumSet.of(DeptType.QA, DeptType.RD);
-            case RELEASE:     return EnumSet.of(DeptType.OPS, DeptType.RD);
-            default:          return EnumSet.noneOf(DeptType.class);
-        }
+        return ProjectPhaseAccessRules.getAllowedDepts(assetsStage);
     }
 }

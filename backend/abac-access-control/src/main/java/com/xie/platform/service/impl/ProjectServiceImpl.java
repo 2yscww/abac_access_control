@@ -18,6 +18,7 @@ import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
+import com.xie.platform.service.ProjectMemberService;
 import com.xie.platform.service.ProjectService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,9 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Autowired
     private PolicyEnforcementPoint pep;
+
+    @Autowired
+    private ProjectMemberService projectMemberService;
 
     @Override
     @Transactional
@@ -101,6 +105,12 @@ public class ProjectServiceImpl implements ProjectService {
         project.setOwnerId(dto.getOwnerId());
 
         projectMapper.insert(project);
+        projectMemberService.initializeProjectMembers(
+                project.getProjectId(),
+                creatorEmployeeId,
+                dto.getOwnerId(),
+                projectPhase
+        );
         return project.getProjectId();
     }
 
@@ -165,6 +175,7 @@ public class ProjectServiceImpl implements ProjectService {
 
         validateStageOwner(newPhase, dto.getNextOwnerId());
         projectMapper.updatePhase(dto.getProjectId(), newPhase.getCode(), dto.getNextOwnerId());
+        projectMemberService.syncMembersForPhaseTransition(dto.getProjectId(), newPhase, dto.getNextOwnerId());
     }
 
     @Override
@@ -181,6 +192,7 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BizException("项目不存在");
         }
 
+        projectMemberService.deleteByProjectId(projectId);
         projectMapper.deleteById(projectId);
     }
 

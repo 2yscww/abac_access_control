@@ -16,6 +16,7 @@ import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.service.AuditLogService;
 import com.xie.platform.service.DepartmentService;
+import com.xie.platform.service.ProjectMemberService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,9 @@ public class DepartmentServiceImpl implements DepartmentService {
 
     @Autowired
     private AuditLogService auditLogService;
+
+    @Autowired
+    private ProjectMemberService projectMemberService;
 
     @Override
     @Transactional
@@ -80,6 +84,13 @@ public class DepartmentServiceImpl implements DepartmentService {
         departmentMapper.updateManagerId(department.getDeptId(), newManager.getEmployeeId());
         if (!phaseCodes.isEmpty()) {
             projectMapper.updateOwnerByPhaseCodes(phaseCodes, newManager.getEmployeeId());
+            for (Projects affectedProject : affectedProjects) {
+                projectMemberService.ensureProjectOwnerMembership(
+                        affectedProject.getProjectId(),
+                        newManager.getEmployeeId(),
+                        affectedProject.getProjectPhase()
+                );
+            }
         }
 
         Map<String, Object> detail = new LinkedHashMap<>();

@@ -44,6 +44,11 @@ public class SecurityLevelPolicy implements Policy {
     }
 
     @Override
+    public int getOrder() {
+        return 10;
+    }
+
+    @Override
     public PolicyResult evaluate(Subject subject, Resource resource, Action action, Environment environment) {
         SecurityLevel securityLevel = resource.getSecurityLevel();
         if (securityLevel == null || subject.getLevel() == null) {

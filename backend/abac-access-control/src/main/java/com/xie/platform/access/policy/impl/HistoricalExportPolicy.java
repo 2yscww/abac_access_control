@@ -40,6 +40,11 @@ public class HistoricalExportPolicy implements Policy {
     }
 
     @Override
+    public int getOrder() {
+        return 30;
+    }
+
+    @Override
     public PolicyResult evaluate(Subject subject, Resource resource, Action action, Environment environment) {
         if (action != Action.EXPORT || resource.getType() != ResourceType.ASSET) {
             return PolicyResult.ALLOW;

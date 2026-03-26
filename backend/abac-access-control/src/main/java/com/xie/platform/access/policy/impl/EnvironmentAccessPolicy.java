@@ -41,6 +41,11 @@ public class EnvironmentAccessPolicy implements Policy {
     }
 
     @Override
+    public int getOrder() {
+        return 20;
+    }
+
+    @Override
     public PolicyResult evaluate(Subject subject, Resource resource, Action action, Environment environment) {
         SecurityLevel securityLevel = resource.getSecurityLevel();
         if (!isHighSecurity(securityLevel)) {

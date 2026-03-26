@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.xie.platform.mapper.ProjectMemberMapper">
+
+    <insert id="insert" parameterType="com.xie.platform.model.ProjectMember"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO project_members (
+            project_id,
+            employee_id,
+            status,
+            joined_phase,
+            joined_at,
+            left_at
+        ) VALUES (
+            #{projectId},
+            #{employeeId},
+            #{status},
+            #{joinedPhase},
+            #{joinedAt},
+            #{leftAt}
+        )
+    </insert>
+
+    <select id="selectByProjectIdAndEmployeeId" resultType="com.xie.platform.model.ProjectMember">
+        SELECT
+            id,
+            project_id,
+            employee_id,
+            status,
+            joined_phase,
+            joined_at,
+            left_at
+        FROM project_members
+        WHERE project_id = #{projectId}
+          AND employee_id = #{employeeId}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <select id="countActiveMember" resultType="int">
+        SELECT COUNT(*)
+        FROM project_members
+        WHERE project_id = #{projectId}
+          AND employee_id = #{employeeId}
+          AND status = 'ACTIVE'
+    </select>
+
+    <update id="reactivate">
+        UPDATE project_members
+        SET status = 'ACTIVE',
+            joined_phase = #{joinedPhase},
+            joined_at = NOW(),
+            left_at = NULL
+        WHERE project_id = #{projectId}
+          AND employee_id = #{employeeId}
+    </update>
+
+    <update id="deactivate">
+        UPDATE project_members
+        SET status = 'INACTIVE',
+            left_at = NOW()
+        WHERE project_id = #{projectId}
+          AND employee_id = #{employeeId}
+          AND status = 'ACTIVE'
+    </update>
+
+    <update id="deactivateByEmployeeId">
+        UPDATE project_members
+        SET status = 'INACTIVE',
+            left_at = NOW()
+        WHERE employee_id = #{employeeId}
+          AND status = 'ACTIVE'
+    </update>
+
+    <select id="selectByProjectId" resultType="com.xie.platform.dto.ProjectMemberDTO">
+        SELECT
+            pm.id,
+            pm.project_id,
+            pm.employee_id,
+            e.employee_code,
+            e.employee_name,
+            e.dept_id,
+            d.dept_type,
+            pm.status,
+            pm.joined_phase,
+            pm.joined_at,
+            pm.left_at
+        FROM project_members pm
+        INNER JOIN employees e ON e.employee_id = pm.employee_id
+        LEFT JOIN departments d ON d.dept_id = e.dept_id
+        WHERE pm.project_id = #{projectId}
+        ORDER BY CASE WHEN pm.status = 'ACTIVE' THEN 0 ELSE 1 END, pm.joined_at DESC, pm.id DESC
+    </select>
+
+    <select id="selectActiveByProjectId" resultType="com.xie.platform.dto.ProjectMemberDTO">
+        SELECT
+            pm.id,
+            pm.project_id,
+            pm.employee_id,
+            e.employee_code,
+            e.employee_name,
+            e.dept_id,
+            d.dept_type,
+            pm.status,
+            pm.joined_phase,
+            pm.joined_at,
+            pm.left_at
+        FROM project_members pm
+        INNER JOIN employees e ON e.employee_id = pm.employee_id
+        LEFT JOIN departments d ON d.dept_id = e.dept_id
+        WHERE pm.project_id = #{projectId}
+          AND pm.status = 'ACTIVE'
+        ORDER BY pm.joined_at DESC, pm.id DESC
+    </select>
+
+    <delete id="deleteByProjectId">
+        DELETE FROM project_members
+        WHERE project_id = #{projectId}
+    </delete>
+</mapper>

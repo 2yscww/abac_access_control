@@ -19,6 +19,7 @@ import com.xie.platform.model.enumValue.EmployeeLevel;
 import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.service.AuditLogService;
 import com.xie.platform.service.EmployeeAuthService;
+import com.xie.platform.service.ProjectMemberService;
 import com.xie.platform.service.result.LoginResult;
 import com.xie.platform.utils.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +51,9 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
     @Autowired
     private AuditLogService auditLogService;
+
+    @Autowired
+    private ProjectMemberService projectMemberService;
 
     @Override
     public LoginResult login(String employeeCode, String rawPassword) {
@@ -178,6 +182,7 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         }
 
         employeesMapper.updateStatus(targetEmployee.getEmployeeId(), EmployeeStatus.INACTIVE);
+        projectMemberService.deactivateByEmployeeId(targetEmployee.getEmployeeId());
 
         List<Department> managedDepartments = departmentMapper.selectByManagerId(targetEmployee.getEmployeeId());
         Map<String, Object> detail = new LinkedHashMap<>();

@@ -14,6 +14,7 @@ import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeLevel;
 import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.service.AuditLogService;
+import com.xie.platform.service.ProjectMemberService;
 import com.xie.platform.utils.JwtUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,6 +58,9 @@ class EmployeeAuthServiceImplTest {
 
     @Mock
     private AuditLogService auditLogService;
+
+    @Mock
+    private ProjectMemberService projectMemberService;
 
     @InjectMocks
     private EmployeeAuthServiceImpl employeeAuthService;
@@ -177,6 +181,7 @@ class EmployeeAuthServiceImplTest {
         employeeAuthService.offboardEmployee(dto, 10L);
 
         verify(employeesMapper).updateStatus(5L, EmployeeStatus.INACTIVE);
+        verify(projectMemberService).deactivateByEmployeeId(5L);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> detailCaptor = ArgumentCaptor.forClass(Map.class);

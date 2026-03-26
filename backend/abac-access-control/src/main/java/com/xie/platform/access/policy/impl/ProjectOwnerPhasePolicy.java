@@ -38,6 +38,11 @@ public class ProjectOwnerPhasePolicy implements Policy {
     }
 
     @Override
+    public int getOrder() {
+        return 10;
+    }
+
+    @Override
     public PolicyResult evaluate(Subject subject, Resource resource, Action action, Environment environment) {
         if (resource.getType() != ResourceType.PROJECT || action != Action.ADVANCE_PHASE) {
             return PolicyResult.ALLOW;

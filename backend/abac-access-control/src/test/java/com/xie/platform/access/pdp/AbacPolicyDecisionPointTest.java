@@ -6,6 +6,7 @@ import com.xie.platform.access.policy.impl.AssetStageAccessPolicy;
 import com.xie.platform.access.policy.impl.EnvironmentAccessPolicy;
 import com.xie.platform.access.policy.impl.HistoricalExportPolicy;
 import com.xie.platform.access.policy.impl.PhaseAccessPolicy;
+import com.xie.platform.access.policy.impl.ProjectMembershipPolicy;
 import com.xie.platform.access.policy.impl.ProjectOwnerPhasePolicy;
 import com.xie.platform.access.policy.impl.SecurityLevelPolicy;
 import com.xie.platform.access.resource.Resource;
@@ -17,6 +18,7 @@ import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeLevel;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
+import com.xie.platform.service.ProjectMemberService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +28,7 @@ import java.util.Arrays;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -33,17 +36,21 @@ class AbacPolicyDecisionPointTest {
 
     private AbacPolicyDecisionPoint pdp;
     private Environment defaultEnv;
+    private ProjectMemberService projectMemberService;
 
     @BeforeEach
     void setUp() {
         DepartmentMapper departmentMapper = mock(DepartmentMapper.class);
+        projectMemberService = mock(ProjectMemberService.class);
         when(departmentMapper.selectById(1L)).thenReturn(buildDepartment(1L, DeptType.RD, 9L));
+        when(projectMemberService.isActiveMember(anyLong(), anyLong())).thenReturn(true);
 
         pdp = new AbacPolicyDecisionPoint();
         pdp.allPolicies = Arrays.asList(
                 new SecurityLevelPolicy(),
                 new EnvironmentAccessPolicy(),
                 new HistoricalExportPolicy(),
+                new ProjectMembershipPolicy(projectMemberService),
                 new PhaseAccessPolicy(),
                 new AssetStageAccessPolicy(),
                 new ProjectOwnerPhasePolicy(departmentMapper)
@@ -77,6 +84,7 @@ class AbacPolicyDecisionPointTest {
         Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
         Resource resource = Resource.builder()
                 .type(ResourceType.PROJECT)
+                .projectId(11L)
                 .projectPhase(ProjectPhase.INIT)
                 .securityLevel(SecurityLevel.INTERNAL)
                 .build();
@@ -92,6 +100,7 @@ class AbacPolicyDecisionPointTest {
         Subject subject = new Subject(1L, 1L, DeptType.MANAGEMENT, 1L, EmployeeLevel.VP, false);
         Resource resource = Resource.builder()
                 .type(ResourceType.PROJECT)
+                .projectId(11L)
                 .projectPhase(ProjectPhase.DEVELOPMENT)
                 .securityLevel(SecurityLevel.INTERNAL)
                 .build();
@@ -107,6 +116,7 @@ class AbacPolicyDecisionPointTest {
         Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
         Resource resource = Resource.builder()
                 .type(ResourceType.ASSET)
+                .projectId(11L)
                 .projectPhase(ProjectPhase.DEVELOPMENT)
                 .assetsStage(ProjectPhase.INIT)
                 .securityLevel(SecurityLevel.INTERNAL)
@@ -123,6 +133,7 @@ class AbacPolicyDecisionPointTest {
         Subject subject = new Subject(1L, 1L, null, 1L, EmployeeLevel.P6, false);
         Resource resource = Resource.builder()
                 .type(ResourceType.PROJECT)
+                .projectId(11L)
                 .projectPhase(ProjectPhase.DEVELOPMENT)
                 .securityLevel(SecurityLevel.INTERNAL)
                 .build();
@@ -138,6 +149,7 @@ class AbacPolicyDecisionPointTest {
         Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
         Resource resource = Resource.builder()
                 .type(ResourceType.PROJECT)
+                .projectId(11L)
                 .projectPhase(ProjectPhase.DEVELOPMENT)
                 .securityLevel(SecurityLevel.CONFIDENTIAL)
                 .build();
@@ -169,6 +181,25 @@ class AbacPolicyDecisionPointTest {
 
         assertFalse(result.isAllowed());
         assertEquals("ProjectOwnerPhasePolicy", result.getTriggerPolicy());
+    }
+
+    @Test
+    void membershipPolicy_shouldDenyNonMemberProjectRead() {
+        when(projectMemberService.isActiveMember(11L, 1L)).thenReturn(false);
+
+        Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
+        Resource resource = Resource.builder()
+                .type(ResourceType.PROJECT)
+                .resourceId(11L)
+                .projectId(11L)
+                .projectPhase(ProjectPhase.DEVELOPMENT)
+                .securityLevel(SecurityLevel.INTERNAL)
+                .build();
+
+        DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
+
+        assertFalse(result.isAllowed());
+        assertEquals("ProjectMembershipPolicy", result.getTriggerPolicy());
     }
 
     private Department buildDepartment(Long deptId, DeptType deptType, Long managerId) {

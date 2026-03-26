@@ -31,4 +31,8 @@ public interface Policy {
      * 规则所属的优先级层，PDP 据此分组并按序执行
      */
     PolicyLayer getLayer();
+
+    default int getOrder() {
+        return 0;
+    }
 }

@@ -14,6 +14,7 @@ import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.service.AuditLogService;
+import com.xie.platform.service.ProjectMemberService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -47,6 +48,9 @@ class DepartmentServiceImplTest {
 
     @Mock
     private AuditLogService auditLogService;
+
+    @Mock
+    private ProjectMemberService projectMemberService;
 
     @InjectMocks
     private DepartmentServiceImpl departmentService;
@@ -114,6 +118,8 @@ class DepartmentServiceImplTest {
 
         verify(departmentMapper).updateManagerId(3L, 9L);
         verify(projectMapper).updateOwnerByPhaseCodes(List.of(ProjectPhase.DEVELOPMENT.getCode()), 9L);
+        verify(projectMemberService).ensureProjectOwnerMembership(101L, 9L, ProjectPhase.DEVELOPMENT);
+        verify(projectMemberService).ensureProjectOwnerMembership(102L, 9L, ProjectPhase.DEVELOPMENT);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> detailCaptor = ArgumentCaptor.forClass(Map.class);

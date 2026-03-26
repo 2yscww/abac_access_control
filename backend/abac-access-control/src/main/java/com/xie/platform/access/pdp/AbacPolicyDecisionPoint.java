@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -51,7 +52,15 @@ public class AbacPolicyDecisionPoint implements PolicyDecisionPoint {
     @PostConstruct
     public void init() {
         policyMap = allPolicies.stream()
-                .collect(Collectors.groupingBy(Policy::getLayer));
+                .collect(Collectors.groupingBy(
+                        Policy::getLayer,
+                        Collectors.collectingAndThen(
+                                Collectors.toList(),
+                                policies -> policies.stream()
+                                        .sorted(Comparator.comparingInt(Policy::getOrder))
+                                        .toList()
+                        )
+                ));
     }
 
     @Override

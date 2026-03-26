@@ -1,4 +1,4 @@
-﻿package com.xie.platform.service.impl;
+package com.xie.platform.service.impl;
 
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.pdp.DecisionResult;

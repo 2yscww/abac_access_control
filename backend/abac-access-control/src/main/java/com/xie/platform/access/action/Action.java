@@ -24,6 +24,12 @@ public enum Action {
     /** 管理层指定部门负责人 */
     ASSIGN_DEPARTMENT_MANAGER,
 
-    /** 导出资源（未来扩展） */
+    /** 新增项目成员 */
+    ADD_PROJECT_MEMBER,
+
+    /** 移出项目成员 */
+    REMOVE_PROJECT_MEMBER,
+
+    /** 导出资源 */
     EXPORT
 }
