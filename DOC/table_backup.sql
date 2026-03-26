@@ -88,8 +88,8 @@ CREATE TABLE project_members (
     employee_id BIGINT NOT NULL,
     status VARCHAR(16) DEFAULT 'ACTIVE',
     joined_phase INT NOT NULL,
-    left_at DATETIME,
     joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    left_at DATETIME,
 
     CONSTRAINT fk_pm_project
         FOREIGN KEY (project_id) REFERENCES projects(project_id),
