@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.xie.platform.mapper.PolicyConfigMapper">
+
+    <select id="selectByPolicyName" resultType="com.xie.platform.model.PolicyConfig">
+        SELECT
+            policy_id,
+            policy_name,
+            description,
+            conditions,
+            effect,
+            priority,
+            enabled,
+            created_at,
+            updated_at
+        FROM policies
+        WHERE policy_name = #{policyName}
+    </select>
+
+    <select id="selectByPolicyNames" resultType="com.xie.platform.model.PolicyConfig">
+        SELECT
+            policy_id,
+            policy_name,
+            description,
+            conditions,
+            effect,
+            priority,
+            enabled,
+            created_at,
+            updated_at
+        FROM policies
+        WHERE policy_name IN
+        <foreach collection="policyNames" item="policyName" open="(" close=")" separator=",">
+            #{policyName}
+        </foreach>
+        ORDER BY priority
+    </select>
+
+    <insert id="insert" parameterType="com.xie.platform.model.PolicyConfig" useGeneratedKeys="true" keyProperty="policyId">
+        INSERT INTO policies (
+            policy_name,
+            description,
+            conditions,
+            effect,
+            priority,
+            enabled
+        ) VALUES (
+            #{policyName},
+            #{description},
+            #{conditions},
+            #{effect},
+            #{priority},
+            #{enabled}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.xie.platform.model.PolicyConfig">
+        UPDATE policies
+        SET
+            description = #{description},
+            conditions = #{conditions},
+            effect = #{effect},
+            priority = #{priority},
+            enabled = #{enabled}
+        WHERE policy_id = #{policyId}
+    </update>
+
+</mapper>

@@ -3,6 +3,7 @@ package com.xie.platform.access.policy.impl;
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.environment.Environment;
 import com.xie.platform.access.policy.PolicyResult;
+import com.xie.platform.access.policy.config.HistoricalExportPolicyConfig;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.access.resource.ResourceType;
 import com.xie.platform.access.subject.Subject;
@@ -11,6 +12,7 @@ import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeLevel;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
+import com.xie.platform.service.PolicyConfigService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -30,6 +32,9 @@ class HistoricalExportPolicyTest {
 
     @Mock
     private AuditLogMapper auditLogMapper;
+
+    @Mock
+    private PolicyConfigService policyConfigService;
 
     @InjectMocks
     private HistoricalExportPolicy policy;
@@ -60,6 +65,20 @@ class HistoricalExportPolicyTest {
 
         assertEquals(PolicyResult.ALLOW, result);
         verifyNoInteractions(auditLogMapper);
+    }
+
+    @Test
+    void evaluate_shouldUseConfiguredThreshold() {
+        HistoricalExportPolicyConfig config = new HistoricalExportPolicyConfig();
+        config.setExportThreshold(10);
+        config.setExportWindowMinutes(15);
+        when(policyConfigService.getHistoricalExportPolicyConfig()).thenReturn(config);
+        when(auditLogMapper.countRecentAllowedActions(eq(7L), eq("EXPORT"), eq("ASSET"), any(LocalDateTime.class)))
+                .thenReturn(10);
+
+        PolicyResult result = policy.evaluate(buildSubject(), buildAssetResource(), Action.EXPORT, buildEnvironment());
+
+        assertEquals(PolicyResult.DENY, result);
     }
 
     private Subject buildSubject() {

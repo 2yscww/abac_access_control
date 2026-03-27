@@ -78,6 +78,49 @@ class ProjectMemberServiceImplTest {
     }
 
     @Test
+    void listProjectMembers_shouldAllowManagementOperator() {
+        Projects project = new Projects();
+        project.setProjectId(11L);
+        project.setOwnerId(9L);
+
+        Employees operator = buildEmployee(20L, 1L, EmployeeStatus.ACTIVE, "1020", "Management");
+        Department managementDepartment = buildDepartment(1L, DeptType.MANAGEMENT, 20L);
+        List<ProjectMemberDTO> expected = List.of(buildMemberDto(7L, DeptType.RD));
+
+        when(projectMapper.selectById(11L)).thenReturn(project);
+        when(employeesMapper.selectByEmployeeId(20L)).thenReturn(operator);
+        when(departmentMapper.selectById(1L)).thenReturn(managementDepartment);
+        when(projectMemberMapper.selectByProjectId(11L)).thenReturn(expected);
+
+        List<ProjectMemberDTO> result = projectMemberService.listProjectMembers(11L, 20L);
+
+        assertEquals(expected, result);
+        verify(projectMemberMapper).selectByProjectId(11L);
+    }
+
+    @Test
+    void listProjectMembers_shouldRejectNonOwnerNonManagementOperator() {
+        Projects project = new Projects();
+        project.setProjectId(11L);
+        project.setOwnerId(9L);
+
+        Employees operator = buildEmployee(20L, 2L, EmployeeStatus.ACTIVE, "1020", "Engineer");
+        Department rdDepartment = buildDepartment(2L, DeptType.RD, 9L);
+
+        when(projectMapper.selectById(11L)).thenReturn(project);
+        when(employeesMapper.selectByEmployeeId(20L)).thenReturn(operator);
+        when(departmentMapper.selectById(2L)).thenReturn(rdDepartment);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> projectMemberService.listProjectMembers(11L, 20L)
+        );
+
+        assertEquals("仅当前阶段负责人或管理层允许维护项目成员", exception.getMessage());
+        verify(projectMemberMapper, never()).selectByProjectId(11L);
+    }
+
+    @Test
     void addProjectMember_shouldAllowOwnerToAddAllowedDepartmentMemberAndAudit() {
         Projects project = new Projects();
         project.setProjectId(11L);

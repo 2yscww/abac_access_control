@@ -8,6 +8,23 @@ export function getProject(projectId) {
   return apiRequest(`/api/project/${projectId}`)
 }
 
+export function listProjectMembers(projectId) {
+  return apiRequest(`/api/project/${projectId}/members`)
+}
+
+export function addProjectMember(projectId, payload) {
+  return apiRequest(`/api/project/${projectId}/members`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function removeProjectMember(projectId, employeeId) {
+  return apiRequest(`/api/project/${projectId}/members/${employeeId}`, {
+    method: 'DELETE',
+  })
+}
+
 export function createProject(payload) {
   return apiRequest('/api/project/create', {
     method: 'POST',

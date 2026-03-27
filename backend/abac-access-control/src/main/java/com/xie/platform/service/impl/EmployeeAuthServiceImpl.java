@@ -19,6 +19,7 @@ import com.xie.platform.model.enumValue.EmployeeLevel;
 import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.service.AuditLogService;
 import com.xie.platform.service.EmployeeAuthService;
+import com.xie.platform.service.PolicyConfigService;
 import com.xie.platform.service.ProjectMemberService;
 import com.xie.platform.service.result.LoginResult;
 import com.xie.platform.utils.JwtUtil;
@@ -27,6 +28,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +56,9 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
     @Autowired
     private ProjectMemberService projectMemberService;
+
+    @Autowired
+    private PolicyConfigService policyConfigService;
 
     @Override
     public LoginResult login(String employeeCode, String rawPassword) {
@@ -243,8 +248,9 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         profile.setLevelRank(employee.getLevel() != null ? employee.getLevel().getRank() : null);
         profile.setIsContractor(employee.getIsContractor());
         profile.setStatus(employee.getStatus() != null ? employee.getStatus().name() : null);
-        profile.setVisibleMenus(buildVisibleMenus(dept.getDeptType()));
-        profile.setCapabilities(buildCapabilities(dept.getDeptType()));
+        boolean policyAdmin = policyConfigService.isPolicyAdmin(employeeId);
+        profile.setVisibleMenus(buildVisibleMenus(dept.getDeptType(), policyAdmin));
+        profile.setCapabilities(buildCapabilities(dept.getDeptType(), policyAdmin));
         return profile;
     }
 
@@ -260,33 +266,42 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         );
     }
 
-    private List<String> buildVisibleMenus(DeptType deptType) {
+    private List<String> buildVisibleMenus(DeptType deptType, boolean policyAdmin) {
+        List<String> menus = new ArrayList<>(List.of("projects", "assets", "files"));
         if (deptType == DeptType.HR || deptType == DeptType.MANAGEMENT) {
-            return List.of("projects", "assets", "files", "handover", "audit");
+            menus.add("handover");
         }
-        return List.of("projects", "assets", "files", "audit");
+        if (deptType == DeptType.MANAGEMENT) {
+            menus.add("audit");
+        }
+        if (policyAdmin) {
+            menus.add("policy");
+        }
+        return List.copyOf(menus);
     }
 
-    private List<String> buildCapabilities(DeptType deptType) {
-        if (deptType == DeptType.HR || deptType == DeptType.MANAGEMENT) {
-            return List.of(
-                    "projects.view",
-                    "assets.view",
-                    "files.view",
-                    "files.upload",
-                    "files.download",
-                    "audit.view",
-                    "handover.view"
-            );
-        }
-        return List.of(
+    private List<String> buildCapabilities(DeptType deptType, boolean policyAdmin) {
+        List<String> capabilities = new ArrayList<>(List.of(
                 "projects.view",
                 "assets.view",
                 "files.view",
                 "files.upload",
-                "files.download",
-                "audit.view"
-        );
+                "files.download"
+        ));
+
+        if (deptType == DeptType.HR) {
+            capabilities.add("handover.view");
+            capabilities.add("handover.offboard");
+        }
+        if (deptType == DeptType.MANAGEMENT) {
+            capabilities.add("handover.view");
+            capabilities.add("handover.assign");
+            capabilities.add("audit.view");
+        }
+        if (policyAdmin) {
+            capabilities.add("policy.manage");
+        }
+        return List.copyOf(capabilities);
     }
 
     private void ensureHrOperator(Long operatorEmployeeId) {

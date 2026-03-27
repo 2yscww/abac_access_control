@@ -32,6 +32,17 @@
         ORDER BY dept_id
     </select>
 
+    <select id="selectByDeptType" resultType="com.xie.platform.model.Department">
+        SELECT
+            dept_id,
+            dept_name,
+            dept_type,
+            manager_id
+        FROM departments
+        WHERE dept_type = #{deptType}
+        LIMIT 1
+    </select>
+
     <select id="selectWithInactiveManager" resultType="com.xie.platform.dto.DepartmentManagerHandoverTodoDTO">
         SELECT
             d.dept_id,

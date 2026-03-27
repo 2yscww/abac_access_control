@@ -2,6 +2,11 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { getCurrentEmployeeProfile } from '@/api/employee'
+import { getRuntimePolicyConfigs } from '@/api/policy'
+import {
+  applyPolicyConfigSnapshot,
+  resetPolicyConfigSnapshot,
+} from '@/utils/accessControl'
 
 const TOKEN_KEY = 'abac_token'
 const EMPLOYEE_ID_KEY = 'abac_employee_id'
@@ -30,15 +35,16 @@ export const useAuthStore = defineStore('auth', () => {
   const profile = ref(readJson(PROFILE_KEY, null))
   const visibleMenus = ref(readJson(MENU_KEY, []))
   const capabilities = ref(readJson(CAPABILITY_KEY, []))
+  const policyConfigLoaded = ref(false)
 
   const isAuthenticated = computed(() => Boolean(token.value))
   const profileLoaded = computed(() => Boolean(profile.value))
   const employeeLabel = computed(() => {
     if (profile.value?.employeeName) {
-      return `${profile.value.employeeName}（${profile.value.employeeCode || employeeId.value || '-'}）`
+      return `${profile.value.employeeName} (${profile.value.employeeCode || employeeId.value || '-'})`
     }
 
-    return employeeId.value ? `员工 ${employeeId.value}` : '未登录'
+    return employeeId.value ? `Employee ${employeeId.value}` : 'Guest'
   })
 
   function setSession(payload) {
@@ -71,6 +77,8 @@ export const useAuthStore = defineStore('auth', () => {
     profile.value = null
     visibleMenus.value = []
     capabilities.value = []
+    policyConfigLoaded.value = false
+    resetPolicyConfigSnapshot()
   }
 
   function setCurrentUser(payload) {
@@ -88,12 +96,22 @@ export const useAuthStore = defineStore('auth', () => {
       return null
     }
 
-    if (!force && profile.value) {
+    if (!force && profile.value && policyConfigLoaded.value) {
       return profile.value
     }
 
     const data = await getCurrentEmployeeProfile()
     setCurrentUser(data)
+
+    try {
+      const runtimeConfigs = await getRuntimePolicyConfigs()
+      applyPolicyConfigSnapshot(runtimeConfigs || [])
+      policyConfigLoaded.value = true
+    } catch {
+      resetPolicyConfigSnapshot()
+      policyConfigLoaded.value = false
+    }
+
     return data
   }
 

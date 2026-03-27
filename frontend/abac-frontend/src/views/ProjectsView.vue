@@ -11,8 +11,16 @@ import {
   projectPhaseOptions,
   securityLevelOptions,
 } from '@/constants/options'
+import { useAuthStore } from '@/stores/auth'
+import {
+  canCreateProject,
+  canMutateProject,
+  getAllowedProjectPhaseOptions,
+  getAllowedSecurityLevelOptions,
+} from '@/utils/accessControl'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const filters = reactive({
   projectName: '',
@@ -24,8 +32,8 @@ const filters = reactive({
 
 const createForm = reactive({
   projectName: '',
-  projectPhase: 1,
-  securityLevel: 2,
+  projectPhase: '',
+  securityLevel: '',
   ownerId: '',
 })
 
@@ -34,6 +42,25 @@ const createSubmitting = ref(false)
 const projects = ref([])
 const total = ref(0)
 const createDialogVisible = ref(false)
+
+const currentProfile = computed(() => authStore.profile || null)
+const currentEmployeeId = computed(() =>
+  Number(currentProfile.value?.employeeId || authStore.employeeId || 0),
+)
+const assumeProjectMembership = computed(
+  () => currentProfile.value?.deptType && currentProfile.value.deptType !== 'MANAGEMENT',
+)
+
+const allowedCreatePhaseOptions = computed(() =>
+  getAllowedProjectPhaseOptions(currentProfile.value),
+)
+const allowedCreateSecurityOptions = computed(() =>
+  getAllowedSecurityLevelOptions(currentProfile.value),
+)
+const canOpenCreateDialog = computed(
+  () =>
+    allowedCreatePhaseOptions.value.length > 0 && allowedCreateSecurityOptions.value.length > 0,
+)
 
 const visibleCount = computed(() => projects.value.length)
 const confidentialCount = computed(
@@ -149,11 +176,41 @@ function getSecurityTagType(rawValue) {
   }
 }
 
+function syncCreateFormOptions() {
+  if (!allowedCreatePhaseOptions.value.some((option) => option.value === createForm.projectPhase)) {
+    createForm.projectPhase = allowedCreatePhaseOptions.value[0]?.value || ''
+  }
+
+  if (
+    !allowedCreateSecurityOptions.value.some(
+      (option) => option.value === createForm.securityLevel,
+    )
+  ) {
+    createForm.securityLevel = allowedCreateSecurityOptions.value[0]?.value || ''
+  }
+}
+
 function resetCreateForm() {
   createForm.projectName = ''
-  createForm.projectPhase = 1
-  createForm.securityLevel = 2
   createForm.ownerId = ''
+  syncCreateFormOptions()
+}
+
+function openCreateDialog() {
+  if (!canOpenCreateDialog.value) {
+    ElMessage.warning('Current account cannot create a project under the active phase or security rules')
+    return
+  }
+
+  resetCreateForm()
+  createDialogVisible.value = true
+}
+
+function canDeleteProject(project) {
+  return canMutateProject(currentProfile.value, project, {
+    assumeActiveMember: assumeProjectMembership.value,
+    currentEmployeeId: currentEmployeeId.value,
+  })
 }
 
 async function loadProjects() {
@@ -173,6 +230,11 @@ async function loadProjects() {
 }
 
 async function handleCreateProject() {
+  if (!canCreateProject(currentProfile.value, createForm.projectPhase, createForm.securityLevel)) {
+    ElMessage.warning('The selected phase or security level is not allowed for this account')
+    return
+  }
+
   createSubmitting.value = true
 
   try {
@@ -180,7 +242,7 @@ async function handleCreateProject() {
       ...createForm,
       ownerId: createForm.ownerId ? Number(createForm.ownerId) : null,
     })
-    ElMessage.success('项目创建成功')
+    ElMessage.success('Project created')
     createDialogVisible.value = false
     resetCreateForm()
     filters.pageNum = 1
@@ -193,14 +255,20 @@ async function handleCreateProject() {
 }
 
 async function handleDeleteProject(projectId) {
+  const project = projects.value.find((item) => item.projectId === projectId)
+  if (!canDeleteProject(project)) {
+    ElMessage.warning('Current account cannot delete this project')
+    return
+  }
+
   try {
     await ElMessageBox.confirm(
-      '确定删除这个项目吗？相关资产也会被一并移除。',
-      '删除确认',
+      'Delete this project? Related project assets will be removed together.',
+      'Delete Project',
       {
         type: 'warning',
-        confirmButtonText: '确认删除',
-        cancelButtonText: '取消',
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
       },
     )
   } catch {
@@ -209,7 +277,7 @@ async function handleDeleteProject(projectId) {
 
   try {
     await deleteProject(projectId)
-    ElMessage.success('项目已删除')
+    ElMessage.success('Project deleted')
 
     if (projects.value.length === 1 && filters.pageNum > 1) {
       filters.pageNum -= 1
@@ -234,184 +302,67 @@ function handlePageChange(pageNum) {
   loadProjects()
 }
 
-onMounted(loadProjects)
+onMounted(() => {
+  resetCreateForm()
+  loadProjects()
+})
 </script>
 
 <template>
   <div class="projects-page">
-      <section class="projects-hero">
-        <div>
-          <p class="projects-hero__eyebrow">Project Overview</p>
-          <h2 class="projects-hero__title">项目权限与阶段责任总览</h2>
-          <p class="projects-hero__description">
-            这里展示当前账号经过 ABAC 决策后可见的项目集合，同时把阶段、密级和负责人镜像成可操作的管理视图。
-          </p>
-        </div>
-        <div class="projects-hero__actions">
-          <el-button plain @click="loadProjects" :loading="loading">刷新列表</el-button>
-          <el-button type="primary" @click="createDialogVisible = true">新建项目</el-button>
-        </div>
-      </section>
+    <section class="projects-hero">
+      <div>
+        <p class="projects-hero__eyebrow">Project Overview</p>
+        <h2 class="projects-hero__title">ABAC-filtered project workspace</h2>
+        <p class="projects-hero__description">
+          This page shows only the projects visible to the current account and exposes only the
+          create and delete actions that still satisfy the backend phase and security rules.
+        </p>
+      </div>
+      <div class="projects-hero__actions">
+        <el-button plain @click="loadProjects" :loading="loading">Refresh</el-button>
+        <el-button v-if="canOpenCreateDialog" type="primary" @click="openCreateDialog">
+          Create Project
+        </el-button>
+      </div>
+    </section>
 
-      <section class="projects-summary">
-        <el-card shadow="never" class="summary-card">
-          <el-statistic title="当前页项目数" :value="visibleCount" />
-          <p>当前分页内实际可见的项目记录。</p>
-        </el-card>
-        <el-card shadow="never" class="summary-card">
-          <el-statistic title="可访问项目总数" :value="total" />
-          <p>分页前的总结果数。</p>
-        </el-card>
-        <el-card shadow="never" class="summary-card">
-          <el-statistic title="高密级项目" :value="confidentialCount" />
-          <p>当前页内机密与绝密项目数。</p>
-        </el-card>
-        <el-card shadow="never" class="summary-card">
-          <el-statistic title="负责人缺口" :value="ownerMissingCount" />
-          <p>用于快速排查脏数据或未同步状态。</p>
-        </el-card>
-      </section>
+    <section class="projects-summary">
+      <el-card shadow="never" class="summary-card">
+        <el-statistic title="Visible Projects" :value="visibleCount" />
+        <p>Projects currently visible after the ABAC read decision is applied.</p>
+      </el-card>
+      <el-card shadow="never" class="summary-card">
+        <el-statistic title="Total Matches" :value="total" />
+        <p>Total records returned by the current query window.</p>
+      </el-card>
+      <el-card shadow="never" class="summary-card">
+        <el-statistic title="High Security" :value="confidentialCount" />
+        <p>Confidential and top-secret projects remain constrained by level and time rules.</p>
+      </el-card>
+      <el-card shadow="never" class="summary-card">
+        <el-statistic title="Missing Owner" :value="ownerMissingCount" />
+        <p>Useful for identifying incomplete stage-owner data before a demo run.</p>
+      </el-card>
+    </section>
 
-      <section class="projects-grid">
-        <el-card shadow="never" class="panel-card">
-          <template #header>
-            <div class="panel-card__header">
-              <div>
-                <h3>查询条件</h3>
-                <p>按项目名称、阶段和密级过滤当前账号有权看到的项目。</p>
-              </div>
-            </div>
-          </template>
-
-          <el-form label-position="top" class="query-form">
-            <el-form-item label="项目名称">
-              <el-input v-model="filters.projectName" clearable placeholder="支持模糊搜索" />
-            </el-form-item>
-            <el-form-item label="项目阶段">
-              <el-select v-model="filters.projectPhase" clearable placeholder="全部阶段">
-                <el-option
-                  v-for="item in projectPhaseOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="项目密级">
-              <el-select v-model="filters.securityLevel" clearable placeholder="全部密级">
-                <el-option
-                  v-for="item in securityLevelOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                />
-              </el-select>
-            </el-form-item>
-          </el-form>
-
-          <div class="query-actions">
-            <el-button type="primary" @click="filters.pageNum = 1; loadProjects()">查询</el-button>
-            <el-button plain @click="resetFilters">重置</el-button>
-          </div>
-        </el-card>
-
-        <el-card shadow="never" class="panel-card">
-          <template #header>
-            <div class="panel-card__header">
-              <div>
-                <h3>当前页阶段分布</h3>
-                <p>用图表快速查看可见项目集中在哪些生命周期阶段。</p>
-              </div>
-              <el-tag type="warning" effect="light" round>Bar</el-tag>
-            </div>
-          </template>
-          <InsightChart :option="phaseChartOption" height="308px" />
-        </el-card>
-      </section>
-
-      <el-card shadow="never" class="table-card">
+    <section class="projects-grid">
+      <el-card shadow="never" class="panel-card">
         <template #header>
           <div class="panel-card__header">
             <div>
-              <h3>项目列表</h3>
-              <p>严格模式下，`owner_id` 只表示当前阶段负责人，真正权限来源仍由后端策略判断。</p>
+              <h3>Filters</h3>
+              <p>Query projects by name, phase, and security level.</p>
             </div>
-            <el-tag type="info" effect="light">共 {{ total }} 条</el-tag>
           </div>
         </template>
 
-        <el-table v-loading="loading" :data="projects" stripe>
-          <el-table-column prop="projectName" label="项目名称" min-width="180" />
-          <el-table-column label="阶段" min-width="130">
-            <template #default="{ row }">
-              <el-tag :type="getPhaseTagType(row.projectPhase)" effect="light">
-                {{ getOptionLabel(projectPhaseOptions, row.projectPhase) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="密级" min-width="120">
-            <template #default="{ row }">
-              <el-tag :type="getSecurityTagType(row.securityLevel)" effect="light">
-                {{ getOptionLabel(securityLevelOptions, row.securityLevel) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="createdByEmployeeId" label="创建人" min-width="110" />
-          <el-table-column prop="ownerId" label="当前负责人" min-width="120" />
-          <el-table-column prop="createdAt" label="创建时间" min-width="180" />
-          <el-table-column label="操作" width="180" fixed="right">
-            <template #default="{ row }">
-              <el-space>
-                <el-button
-                  type="primary"
-                  link
-                  @click="router.push({ name: 'project-detail', params: { id: row.projectId } })"
-                >
-                  查看详情
-                </el-button>
-                <el-button type="danger" link @click="handleDeleteProject(row.projectId)">
-                  删除
-                </el-button>
-              </el-space>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <el-empty v-if="!loading && projects.length === 0" description="当前条件下没有可访问项目" />
-
-        <div class="table-card__footer">
-          <el-pagination
-            background
-            layout="prev, pager, next, total"
-            :current-page="filters.pageNum"
-            :page-size="filters.pageSize"
-            :total="total"
-            @current-change="handlePageChange"
-          />
-        </div>
-      </el-card>
-
-      <el-dialog
-        v-model="createDialogVisible"
-        width="560px"
-        destroy-on-close
-        title="新建项目"
-        @closed="resetCreateForm"
-      >
-        <el-alert
-          title="严格模式提示：当前阶段负责人必须等于该阶段主责部门的 manager_id。"
-          type="warning"
-          show-icon
-          :closable="false"
-          class="create-alert"
-        />
-
-        <el-form label-position="top">
-          <el-form-item label="项目名称">
-            <el-input v-model="createForm.projectName" placeholder="请输入项目名称" />
+        <el-form label-position="top" class="query-form">
+          <el-form-item label="Project Name">
+            <el-input v-model="filters.projectName" clearable placeholder="Supports fuzzy matching" />
           </el-form-item>
-          <el-form-item label="初始阶段">
-            <el-select v-model="createForm.projectPhase" placeholder="请选择阶段">
+          <el-form-item label="Project Phase">
+            <el-select v-model="filters.projectPhase" clearable placeholder="All phases">
               <el-option
                 v-for="item in projectPhaseOptions"
                 :key="item.value"
@@ -420,8 +371,8 @@ onMounted(loadProjects)
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="项目密级">
-            <el-select v-model="createForm.securityLevel" placeholder="请选择密级">
+          <el-form-item label="Security Level">
+            <el-select v-model="filters.securityLevel" clearable placeholder="All levels">
               <el-option
                 v-for="item in securityLevelOptions"
                 :key="item.value"
@@ -430,21 +381,149 @@ onMounted(loadProjects)
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="当前阶段负责人 ID">
-            <el-input
-              v-model="createForm.ownerId"
-              placeholder="请输入当前阶段负责人的员工 ID"
-            />
-          </el-form-item>
         </el-form>
 
-        <template #footer>
-          <el-button @click="createDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="createSubmitting" @click="handleCreateProject">
-            提交项目
-          </el-button>
+        <div class="query-actions">
+          <el-button type="primary" @click="filters.pageNum = 1; loadProjects()">Query</el-button>
+          <el-button plain @click="resetFilters">Reset</el-button>
+        </div>
+      </el-card>
+
+      <el-card shadow="never" class="panel-card">
+        <template #header>
+          <div class="panel-card__header">
+            <div>
+              <h3>Phase Distribution</h3>
+              <p>Quickly review which lifecycle stages dominate the current result set.</p>
+            </div>
+            <el-tag type="warning" effect="light" round>Bar</el-tag>
+          </div>
         </template>
-      </el-dialog>
+        <InsightChart :option="phaseChartOption" height="308px" />
+      </el-card>
+    </section>
+
+    <el-card shadow="never" class="table-card">
+      <template #header>
+        <div class="panel-card__header">
+          <div>
+            <h3>Projects</h3>
+            <p>
+              The delete entry point is hidden unless the current account still satisfies the same
+              mutation conditions enforced by the backend.
+            </p>
+          </div>
+          <el-tag type="info" effect="light">Total {{ total }}</el-tag>
+        </div>
+      </template>
+
+      <el-table v-loading="loading" :data="projects" stripe>
+        <el-table-column prop="projectName" label="Project Name" min-width="180" />
+        <el-table-column label="Phase" min-width="130">
+          <template #default="{ row }">
+            <el-tag :type="getPhaseTagType(row.projectPhase)" effect="light">
+              {{ getOptionLabel(projectPhaseOptions, row.projectPhase) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="Security" min-width="120">
+          <template #default="{ row }">
+            <el-tag :type="getSecurityTagType(row.securityLevel)" effect="light">
+              {{ getOptionLabel(securityLevelOptions, row.securityLevel) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdByEmployeeId" label="Created By" min-width="110" />
+        <el-table-column prop="ownerId" label="Current Owner" min-width="120" />
+        <el-table-column prop="createdAt" label="Created At" min-width="180" />
+        <el-table-column label="Action" width="180" fixed="right">
+          <template #default="{ row }">
+            <el-space>
+              <el-button
+                type="primary"
+                link
+                @click="router.push({ name: 'project-detail', params: { id: row.projectId } })"
+              >
+                Details
+              </el-button>
+              <el-button
+                v-if="canDeleteProject(row)"
+                type="danger"
+                link
+                @click="handleDeleteProject(row.projectId)"
+              >
+                Delete
+              </el-button>
+            </el-space>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-empty v-if="!loading && projects.length === 0" description="No project is visible under the current filter." />
+
+      <div class="table-card__footer">
+        <el-pagination
+          background
+          layout="prev, pager, next, total"
+          :current-page="filters.pageNum"
+          :page-size="filters.pageSize"
+          :total="total"
+          @current-change="handlePageChange"
+        />
+      </div>
+    </el-card>
+
+    <el-dialog
+      v-model="createDialogVisible"
+      width="560px"
+      destroy-on-close
+      title="Create Project"
+      @closed="resetCreateForm"
+    >
+      <el-alert
+        title="Only phases and security levels that still satisfy the current account rules are kept in this form."
+        type="warning"
+        show-icon
+        :closable="false"
+        class="create-alert"
+      />
+
+      <el-form label-position="top">
+        <el-form-item label="Project Name">
+          <el-input v-model="createForm.projectName" placeholder="Enter a project name" />
+        </el-form-item>
+        <el-form-item label="Initial Phase">
+          <el-select v-model="createForm.projectPhase" placeholder="Select a phase">
+            <el-option
+              v-for="item in allowedCreatePhaseOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="Security Level">
+          <el-select v-model="createForm.securityLevel" placeholder="Select a security level">
+            <el-option
+              v-for="item in allowedCreateSecurityOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="Current Owner ID">
+          <el-input v-model="createForm.ownerId" placeholder="Enter the employee ID for the current phase owner" />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="createDialogVisible = false">Cancel</el-button>
+        <el-button type="primary" :loading="createSubmitting" @click="handleCreateProject">
+          Submit
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

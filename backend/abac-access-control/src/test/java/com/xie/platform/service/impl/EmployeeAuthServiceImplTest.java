@@ -2,6 +2,7 @@ package com.xie.platform.service.impl;
 
 import com.xie.platform.access.action.Action;
 import com.xie.platform.dto.CreateEmployeeDTO;
+import com.xie.platform.dto.EmployeeProfileDTO;
 import com.xie.platform.dto.OffboardEmployeeDTO;
 import com.xie.platform.exception.BizException;
 import com.xie.platform.mapper.BranchMapper;
@@ -14,6 +15,7 @@ import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeLevel;
 import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.service.AuditLogService;
+import com.xie.platform.service.PolicyConfigService;
 import com.xie.platform.service.ProjectMemberService;
 import com.xie.platform.utils.JwtUtil;
 import org.junit.jupiter.api.Test;
@@ -61,6 +63,9 @@ class EmployeeAuthServiceImplTest {
 
     @Mock
     private ProjectMemberService projectMemberService;
+
+    @Mock
+    private PolicyConfigService policyConfigService;
 
     @InjectMocks
     private EmployeeAuthServiceImpl employeeAuthService;
@@ -202,6 +207,91 @@ class EmployeeAuthServiceImplTest {
         assertEquals(List.of("RD"), detail.get("managedDeptTypes"));
     }
 
+    @Test
+    void getCurrentEmployeeProfile_shouldExposeManagementAuditAndAssignCapabilities() {
+        Employees employee = buildOperator(20L, 1L, EmployeeStatus.ACTIVE);
+        employee.setEmployeeCode("1020");
+        employee.setEmployeeName("Manager");
+        employee.setBranchId(3L);
+        employee.setLevel(EmployeeLevel.VP);
+
+        when(employeesMapper.selectByEmployeeId(20L)).thenReturn(employee);
+        when(departmentMapper.selectById(1L)).thenReturn(buildDepartment(1L, DeptType.MANAGEMENT));
+        when(policyConfigService.isPolicyAdmin(20L)).thenReturn(true);
+
+        EmployeeProfileDTO profile = employeeAuthService.getCurrentEmployeeProfile(20L);
+
+        assertEquals(List.of("projects", "assets", "files", "handover", "audit", "policy"), profile.getVisibleMenus());
+        assertEquals(
+                List.of(
+                        "projects.view",
+                        "assets.view",
+                        "files.view",
+                        "files.upload",
+                        "files.download",
+                        "handover.view",
+                        "handover.assign",
+                        "audit.view",
+                        "policy.manage"
+                ),
+                profile.getCapabilities()
+        );
+    }
+
+    @Test
+    void getCurrentEmployeeProfile_shouldExposeHrOffboardCapabilityWithoutAudit() {
+        Employees employee = buildOperator(30L, 2L, EmployeeStatus.ACTIVE);
+        employee.setEmployeeCode("1030");
+        employee.setEmployeeName("Hr");
+        employee.setBranchId(3L);
+        employee.setLevel(EmployeeLevel.P6);
+
+        when(employeesMapper.selectByEmployeeId(30L)).thenReturn(employee);
+        when(departmentMapper.selectById(2L)).thenReturn(buildDepartment(2L, DeptType.HR));
+
+        EmployeeProfileDTO profile = employeeAuthService.getCurrentEmployeeProfile(30L);
+
+        assertEquals(List.of("projects", "assets", "files", "handover"), profile.getVisibleMenus());
+        assertEquals(
+                List.of(
+                        "projects.view",
+                        "assets.view",
+                        "files.view",
+                        "files.upload",
+                        "files.download",
+                        "handover.view",
+                        "handover.offboard"
+                ),
+                profile.getCapabilities()
+        );
+    }
+
+    @Test
+    void getCurrentEmployeeProfile_shouldHideAuditAndHandoverFromGeneralStaff() {
+        Employees employee = buildOperator(40L, 3L, EmployeeStatus.ACTIVE);
+        employee.setEmployeeCode("1040");
+        employee.setEmployeeName("Engineer");
+        employee.setBranchId(3L);
+        employee.setLevel(EmployeeLevel.P6);
+
+        when(employeesMapper.selectByEmployeeId(40L)).thenReturn(employee);
+        when(departmentMapper.selectById(3L)).thenReturn(buildDepartment(3L, DeptType.RD));
+
+        EmployeeProfileDTO profile = employeeAuthService.getCurrentEmployeeProfile(40L);
+
+        assertEquals(List.of("projects", "assets", "files"), profile.getVisibleMenus());
+        assertEquals(
+                List.of(
+                        "projects.view",
+                        "assets.view",
+                        "files.view",
+                        "files.upload",
+                        "files.download"
+                ),
+                profile.getCapabilities()
+        );
+    }
+
     private CreateEmployeeDTO buildCreateEmployeeDto() {
         CreateEmployeeDTO dto = new CreateEmployeeDTO();
         dto.setEmployeeName("Alice");
@@ -218,5 +308,12 @@ class EmployeeAuthServiceImplTest {
         operator.setDeptId(deptId);
         operator.setStatus(status);
         return operator;
+    }
+
+    private Department buildDepartment(Long deptId, DeptType deptType) {
+        Department department = new Department();
+        department.setDeptId(deptId);
+        department.setDeptType(deptType);
+        return department;
     }
 }

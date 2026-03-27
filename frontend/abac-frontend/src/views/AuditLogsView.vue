@@ -5,6 +5,9 @@ import { ElMessage } from 'element-plus'
 import { queryAuditLogs } from '@/api/audit'
 import InsightChart from '@/components/InsightChart.vue'
 import { getOptionLabel, securityLevelOptions } from '@/constants/options'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
 
 const actionOptions = [
   { value: 'READ', label: '读取' },
@@ -45,6 +48,7 @@ const total = ref(0)
 const loading = ref(false)
 const detailDialogVisible = ref(false)
 const selectedLog = ref(null)
+const canViewAudit = computed(() => authStore.hasCapability('audit.view'))
 
 const denyCount = computed(() => logs.value.filter((item) => item.decision === 'DENY').length)
 const allowCount = computed(() => logs.value.filter((item) => item.decision === 'ALLOW').length)
@@ -157,6 +161,12 @@ function buildQuery() {
 }
 
 async function loadAuditLogs() {
+  if (!canViewAudit.value) {
+    logs.value = []
+    total.value = 0
+    return
+  }
+
   loading.value = true
 
   try {
@@ -194,7 +204,11 @@ function openDetail(log) {
   detailDialogVisible.value = true
 }
 
-onMounted(loadAuditLogs)
+onMounted(() => {
+  if (canViewAudit.value) {
+    loadAuditLogs()
+  }
+})
 </script>
 
 <template>

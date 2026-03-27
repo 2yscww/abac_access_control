@@ -5,30 +5,27 @@ import com.xie.platform.access.environment.Environment;
 import com.xie.platform.access.policy.Policy;
 import com.xie.platform.access.policy.PolicyLayer;
 import com.xie.platform.access.policy.PolicyResult;
+import com.xie.platform.access.policy.config.EnvironmentAccessPolicyConfig;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.access.resource.ResourceType;
 import com.xie.platform.access.subject.Subject;
 import com.xie.platform.model.enumValue.SecurityLevel;
+import com.xie.platform.service.PolicyConfigService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.regex.Pattern;
 
-/**
- * 环境策略。
- *
- * <p>第一版先落地两条容易解释、容易演示的规则：</p>
- * <p>1. 机密及以上资源只能在工作时间访问。</p>
- * <p>2. 机密及以上资产只能从内网执行 READ / EXPORT。</p>
- */
 @Component
 public class EnvironmentAccessPolicy implements Policy {
 
-    private static final LocalTime WORK_START = LocalTime.of(8, 0);
-    private static final LocalTime WORK_END = LocalTime.of(20, 0);
     private static final Pattern PRIVATE_172_RANGE =
             Pattern.compile("^172\\.(1[6-9]|2\\d|3[0-1])\\..*");
+
+    @Autowired(required = false)
+    private PolicyConfigService policyConfigService;
 
     @Override
     public String getName() {
@@ -47,12 +44,17 @@ public class EnvironmentAccessPolicy implements Policy {
 
     @Override
     public PolicyResult evaluate(Subject subject, Resource resource, Action action, Environment environment) {
+        EnvironmentAccessPolicyConfig config = resolveConfig();
+        if (Boolean.FALSE.equals(config.getEnabled())) {
+            return PolicyResult.ALLOW;
+        }
+
         SecurityLevel securityLevel = resource.getSecurityLevel();
         if (!isHighSecurity(securityLevel)) {
             return PolicyResult.ALLOW;
         }
 
-        if (!isWithinWorkingHours(environment != null ? environment.getRequestTime() : null)) {
+        if (!isWithinWorkingHours(environment != null ? environment.getRequestTime() : null, config)) {
             return PolicyResult.DENY;
         }
 
@@ -69,13 +71,15 @@ public class EnvironmentAccessPolicy implements Policy {
         return securityLevel != null && securityLevel.getLevel() >= SecurityLevel.CONFIDENTIAL.getLevel();
     }
 
-    private boolean isWithinWorkingHours(LocalDateTime requestTime) {
+    private boolean isWithinWorkingHours(LocalDateTime requestTime, EnvironmentAccessPolicyConfig config) {
         if (requestTime == null) {
             return false;
         }
 
+        LocalTime workStart = parseTime(config.getWorkStart(), LocalTime.of(8, 0));
+        LocalTime workEnd = parseTime(config.getWorkEnd(), LocalTime.of(20, 0));
         LocalTime currentTime = requestTime.toLocalTime();
-        return !currentTime.isBefore(WORK_START) && !currentTime.isAfter(WORK_END);
+        return !currentTime.isBefore(workStart) && !currentTime.isAfter(workEnd);
     }
 
     private boolean isNetworkRestrictedAction(Action action) {
@@ -100,5 +104,20 @@ public class EnvironmentAccessPolicy implements Policy {
                 || "0:0:0:0:0:0:0:1".equals(ip)
                 || ip.startsWith("fc")
                 || ip.startsWith("fd");
+    }
+
+    private EnvironmentAccessPolicyConfig resolveConfig() {
+        EnvironmentAccessPolicyConfig config = policyConfigService != null
+                ? policyConfigService.getEnvironmentAccessPolicyConfig()
+                : null;
+        return config != null ? config : new EnvironmentAccessPolicyConfig();
+    }
+
+    private LocalTime parseTime(String value, LocalTime fallback) {
+        try {
+            return LocalTime.parse(value);
+        } catch (Exception exception) {
+            return fallback;
+        }
     }
 }

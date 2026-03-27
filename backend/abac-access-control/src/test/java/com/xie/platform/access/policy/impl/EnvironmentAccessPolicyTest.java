@@ -3,6 +3,7 @@ package com.xie.platform.access.policy.impl;
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.environment.Environment;
 import com.xie.platform.access.policy.PolicyResult;
+import com.xie.platform.access.policy.config.EnvironmentAccessPolicyConfig;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.access.resource.ResourceType;
 import com.xie.platform.access.subject.Subject;
@@ -10,11 +11,15 @@ import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeLevel;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
+import com.xie.platform.service.PolicyConfigService;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class EnvironmentAccessPolicyTest {
 
@@ -72,6 +77,25 @@ class EnvironmentAccessPolicyTest {
                 lowSecurityAsset,
                 Action.READ,
                 buildEnvironment(LocalDateTime.of(2026, 3, 19, 22, 0), "8.8.8.8")
+        );
+
+        assertEquals(PolicyResult.ALLOW, result);
+    }
+
+    @Test
+    void evaluate_shouldUseConfiguredWorkingHourWindow() {
+        PolicyConfigService policyConfigService = mock(PolicyConfigService.class);
+        EnvironmentAccessPolicyConfig config = new EnvironmentAccessPolicyConfig();
+        config.setWorkStart("09:00");
+        config.setWorkEnd("23:00");
+        when(policyConfigService.getEnvironmentAccessPolicyConfig()).thenReturn(config);
+        ReflectionTestUtils.setField(policy, "policyConfigService", policyConfigService);
+
+        PolicyResult result = policy.evaluate(
+                buildSubject(),
+                buildHighSecurityProject(),
+                Action.READ,
+                buildEnvironment(LocalDateTime.of(2026, 3, 19, 22, 0), "10.0.0.5")
         );
 
         assertEquals(PolicyResult.ALLOW, result);

@@ -22,8 +22,9 @@ const router = createRouter({
           meta: {
             requiresAuth: true,
             requiredMenu: 'projects',
-            title: '项目总览',
-            description: '查看项目列表、阶段分布和基础统计。',
+            title: 'Project Overview',
+            description:
+              'Review visible projects, phase distribution, and ABAC-filtered create/delete entry points.',
           },
         },
         {
@@ -33,8 +34,9 @@ const router = createRouter({
           meta: {
             requiresAuth: true,
             requiredMenu: 'projects',
-            title: '项目详情',
-            description: '查看项目元数据、资产列表和阶段推进信息。',
+            title: 'Project Detail',
+            description:
+              'Inspect project attributes, members, assets, and phase handover in one workflow.',
           },
         },
         {
@@ -44,8 +46,8 @@ const router = createRouter({
           meta: {
             requiresAuth: true,
             requiredMenu: 'assets',
-            title: '资产中心',
-            description: '按项目、类型和密级查询可见资产。',
+            title: 'Asset Center',
+            description: 'Query assets by project, stage, type, and security level.',
           },
         },
         {
@@ -55,8 +57,8 @@ const router = createRouter({
           meta: {
             requiresAuth: true,
             requiredMenu: 'files',
-            title: '文件中心',
-            description: '原型页：展示上传、下载和文件流转入口。',
+            title: 'File Center',
+            description: 'Prototype page for file upload, download, and circulation entry points.',
           },
         },
         {
@@ -66,8 +68,9 @@ const router = createRouter({
           meta: {
             requiresAuth: true,
             requiredMenu: 'handover',
-            title: '负责人交接',
-            description: '处理离职、负责人改派和待办项目。',
+            requiredCapability: 'handover.view',
+            title: 'Handover Workbench',
+            description: 'Handle offboarding, manager reassignment, and pending handover items.',
           },
         },
         {
@@ -77,8 +80,22 @@ const router = createRouter({
           meta: {
             requiresAuth: true,
             requiredMenu: 'audit',
-            title: '审计日志',
-            description: '查看授权决策和业务交接记录。',
+            requiredCapability: 'audit.view',
+            title: 'Audit Logs',
+            description: 'Review authorization decisions and business handover events.',
+          },
+        },
+        {
+          path: 'policy',
+          name: 'policy',
+          component: () => import('@/views/PolicyConfigView.vue'),
+          meta: {
+            requiresAuth: true,
+            requiredMenu: 'policy',
+            requiredCapability: 'policy.manage',
+            title: 'Policy Config',
+            description:
+              'Adjust runtime thresholds while keeping ABAC policy logic fixed in code.',
           },
         },
       ],
@@ -101,13 +118,20 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresAuth && authStore.isAuthenticated) {
     try {
-      await authStore.fetchCurrentUser()
+      await authStore.fetchCurrentUser(true)
     } catch {
       authStore.clearSession()
       return { name: 'login' }
     }
 
     if (to.meta.requiredMenu && !authStore.hasMenu(String(to.meta.requiredMenu))) {
+      return { name: 'projects' }
+    }
+
+    if (
+      to.meta.requiredCapability &&
+      !authStore.hasCapability(String(to.meta.requiredCapability))
+    ) {
       return { name: 'projects' }
     }
   }

@@ -10,6 +10,9 @@ import {
 } from '@/api/department'
 import { offboardEmployee, queryActiveEmployees } from '@/api/employee'
 import { getOptionLabel, projectPhaseOptions } from '@/constants/options'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
 
 const employeeQuery = reactive({
   keyword: '',
@@ -34,6 +37,9 @@ const candidatesLoading = ref(false)
 const assignSubmitting = ref(false)
 const assignDialogVisible = ref(false)
 const currentTodo = ref(null)
+const canOffboard = computed(() => authStore.hasCapability('handover.offboard'))
+const canAssign = computed(() => authStore.hasCapability('handover.assign'))
+const refreshLoading = computed(() => todoLoading.value || employeeLoading.value)
 
 const orderedTodos = computed(() =>
   [...todos.value].sort(
@@ -131,6 +137,12 @@ function buildCandidateLabel(candidate) {
 }
 
 async function loadTodos() {
+  if (!canAssign.value) {
+    todos.value = []
+    todoError.value = ''
+    return
+  }
+
   todoLoading.value = true
   todoError.value = ''
 
@@ -145,6 +157,13 @@ async function loadTodos() {
 }
 
 async function searchEmployees() {
+  if (!canOffboard.value) {
+    employees.value = []
+    employeeError.value = ''
+    employeeQueried.value = false
+    return
+  }
+
   employeeLoading.value = true
   employeeError.value = ''
   employeeQueried.value = true
@@ -162,6 +181,11 @@ async function searchEmployees() {
 }
 
 async function handleOffboard(employee) {
+  if (!canOffboard.value) {
+    ElMessage.warning('当前账号不能办理离职')
+    return
+  }
+
   try {
     await ElMessageBox.confirm(
       `确认将 ${employee.employeeName}（${employee.employeeCode}）办理离职？`,
@@ -179,13 +203,22 @@ async function handleOffboard(employee) {
   try {
     await offboardEmployee({ employeeId: employee.employeeId })
     ElMessage.success('离职办理成功')
-    await Promise.allSettled([searchEmployees(), loadTodos()])
+    const reloadTasks = [searchEmployees()]
+    if (canAssign.value) {
+      reloadTasks.push(loadTodos())
+    }
+    await Promise.allSettled(reloadTasks)
   } catch (error) {
     ElMessage.error(error.message)
   }
 }
 
 async function openAssignDialog(todo) {
+  if (!canAssign.value) {
+    ElMessage.warning('当前账号不能改派负责人')
+    return
+  }
+
   currentTodo.value = todo
   assignForm.deptId = todo.deptId
   assignForm.newManagerEmployeeId = null
@@ -204,6 +237,11 @@ async function openAssignDialog(todo) {
 }
 
 async function submitAssignment() {
+  if (!canAssign.value) {
+    ElMessage.warning('当前账号不能改派负责人')
+    return
+  }
+
   if (!assignForm.deptId || !assignForm.newManagerEmployeeId) {
     ElMessage.warning('请选择新的部门负责人')
     return
@@ -225,7 +263,25 @@ async function submitAssignment() {
   }
 }
 
-onMounted(loadTodos)
+async function refreshWorkbench() {
+  const tasks = []
+  if (canAssign.value) {
+    tasks.push(loadTodos())
+  }
+  if (canOffboard.value && employeeQueried.value) {
+    tasks.push(searchEmployees())
+  }
+  if (tasks.length === 0) {
+    return
+  }
+  await Promise.allSettled(tasks)
+}
+
+onMounted(() => {
+  if (canAssign.value) {
+    loadTodos()
+  }
+})
 </script>
 
 <template>
@@ -239,10 +295,10 @@ onMounted(loadTodos)
             变化自动同步到当前项目负责人镜像，确保严格模式规则持续成立。
           </p>
         </div>
-        <el-button plain @click="loadTodos" :loading="todoLoading">刷新待办</el-button>
+        <el-button plain @click="refreshWorkbench" :loading="refreshLoading">刷新数据</el-button>
       </section>
 
-      <section class="handover-summary">
+      <section v-if="canAssign" class="handover-summary">
         <el-card shadow="never" class="summary-card">
           <p class="summary-card__label">待改派部门</p>
           <strong>{{ todos.length }}</strong>
@@ -267,7 +323,7 @@ onMounted(loadTodos)
       </section>
 
       <section class="handover-grid">
-        <el-card shadow="never" class="chart-card">
+        <el-card v-if="canAssign" shadow="never" class="chart-card">
           <template #header>
             <div class="card-header">
               <div>
@@ -281,7 +337,7 @@ onMounted(loadTodos)
           <InsightChart :option="chartOption" height="340px" />
         </el-card>
 
-        <el-card shadow="never" class="panel-card">
+        <el-card v-if="canOffboard" shadow="never" class="panel-card">
           <template #header>
             <div class="card-header">
               <div>
@@ -332,7 +388,7 @@ onMounted(loadTodos)
         </el-card>
       </section>
 
-      <el-card shadow="never" class="panel-card">
+      <el-card v-if="canAssign" shadow="never" class="panel-card">
         <template #header>
           <div class="card-header">
             <div>
