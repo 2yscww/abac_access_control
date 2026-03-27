@@ -217,6 +217,7 @@ CREATE TABLE policies (
 
 
 
+
 -- ! 安全审计日志表
 
 CREATE TABLE audit_logs (
@@ -229,12 +230,23 @@ CREATE TABLE audit_logs (
     decision VARCHAR(16) NOT NULL,
     trigger_policy VARCHAR(128),
     deny_reason VARCHAR(255),
+
+    -- 资源快照字段
     project_phase INT,
     assets_stage INT,
     security_level INT,
+
+    -- 请求信息
     request_ip VARCHAR(64),
     request_uri VARCHAR(255),
     request_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    -- 网络环境（新增）
+    network_zone VARCHAR(32),
+
+    -- 业务审计详情
+    detail_json JSON,
+
     CONSTRAINT fk_audit_employee
         FOREIGN KEY (employee_id)
         REFERENCES employees(employee_id)
@@ -247,6 +259,7 @@ CREATE TABLE audit_logs (
         ON UPDATE CASCADE
 );
 
+-- 索引保持不变
 CREATE INDEX idx_audit_employee_time
     ON audit_logs(employee_id, request_time);
 
@@ -258,6 +271,18 @@ CREATE INDEX idx_audit_resource
 
 CREATE INDEX idx_audit_project
     ON audit_logs(project_id, request_time);
+
+
+-- =========================
+-- 字段说明补充
+-- =========================
+
+-- network_zone：
+--   表示访问网络环境，取值建议：
+--   INTERNAL  内网
+--   PUBLIC    公网
+--   LOOPBACK  本机回环（127.0.0.1）
+--   UNKNOWN   未识别
 
 
 -- audit_logs：安全审计日志表，用于记录系统操作行为与权限决策情况
@@ -288,6 +313,8 @@ CREATE INDEX idx_audit_project
 
 
 
+
+-- ? 对部门表的外键约束
 ALTER TABLE departments
 ADD CONSTRAINT fk_dept_manager
 FOREIGN KEY (manager_id)
