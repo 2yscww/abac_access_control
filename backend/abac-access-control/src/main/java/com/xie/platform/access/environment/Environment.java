@@ -1,5 +1,6 @@
 package com.xie.platform.access.environment;
 
+import com.xie.platform.model.enumValue.NetworkZone;
 import lombok.Builder;
 import lombok.Data;
 
@@ -25,6 +26,7 @@ public class Environment {
      * 用于判断是否来自公司内网或可信网段
      */
     private String ipAddress;
+    private NetworkZone networkZone;
 
     /**
      * 请求路径

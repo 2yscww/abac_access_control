@@ -21,6 +21,12 @@ public enum Action {
     /** HR 发起员工离职 */
     OFFBOARD_EMPLOYEE,
 
+    /** 登录 */
+    LOGIN,
+
+    /** 修改密码 */
+    CHANGE_PASSWORD,
+
     /** 管理层指定部门负责人 */
     ASSIGN_DEPARTMENT_MANAGER,
 
@@ -29,6 +35,12 @@ public enum Action {
 
     /** 移出项目成员 */
     REMOVE_PROJECT_MEMBER,
+
+    /** 阶段切换导致的自动移出项目成员 */
+    AUTO_REMOVE_PROJECT_MEMBER,
+
+    /** 更新策略参数 */
+    UPDATE_POLICY_CONFIG,
 
     /** 导出资源 */
     EXPORT

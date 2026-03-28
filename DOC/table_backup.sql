@@ -231,20 +231,20 @@ CREATE TABLE audit_logs (
     trigger_policy VARCHAR(128),
     deny_reason VARCHAR(255),
 
-    -- 资源快照字段
+  
     project_phase INT,
     assets_stage INT,
     security_level INT,
 
-    -- 请求信息
+
     request_ip VARCHAR(64),
     request_uri VARCHAR(255),
     request_time DATETIME DEFAULT CURRENT_TIMESTAMP,
 
-    -- 网络环境（新增）
+
     network_zone VARCHAR(32),
 
-    -- 业务审计详情
+
     detail_json JSON,
 
     CONSTRAINT fk_audit_employee
@@ -259,7 +259,7 @@ CREATE TABLE audit_logs (
         ON UPDATE CASCADE
 );
 
--- 索引保持不变
+
 CREATE INDEX idx_audit_employee_time
     ON audit_logs(employee_id, request_time);
 

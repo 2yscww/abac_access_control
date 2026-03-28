@@ -3,6 +3,7 @@ package com.xie.platform.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xie.platform.access.action.Action;
 import com.xie.platform.access.policy.config.EnvironmentAccessPolicyConfig;
 import com.xie.platform.access.policy.config.HistoricalExportPolicyConfig;
 import com.xie.platform.access.policy.config.SecurityLevelPolicyConfig;
@@ -15,6 +16,7 @@ import com.xie.platform.mapper.PolicyConfigMapper;
 import com.xie.platform.model.Department;
 import com.xie.platform.model.PolicyConfig;
 import com.xie.platform.model.enumValue.DeptType;
+import com.xie.platform.service.AuditLogService;
 import com.xie.platform.service.PolicyConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,6 +60,9 @@ public class PolicyConfigServiceImpl implements PolicyConfigService {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private AuditLogService auditLogService;
 
     private final Map<String, PolicyConfig> policyCache = new ConcurrentHashMap<>();
     private final Set<String> missingPolicyNames = ConcurrentHashMap.newKeySet();
@@ -118,33 +123,41 @@ public class PolicyConfigServiceImpl implements PolicyConfigService {
     @Override
     @Transactional
     public PolicyConfigDTO updatePolicyConfig(String policyName, UpdatePolicyConfigDTO dto, Long operatorEmployeeId) {
-        ensurePolicyAdmin(operatorEmployeeId);
+        try {
+            ensurePolicyAdmin(operatorEmployeeId);
 
-        if (dto == null) {
-            throw new BizException("Policy config payload is required");
+            if (dto == null) {
+                throw new BizException("Policy config payload is required");
+            }
+
+            return switch (policyName) {
+                case SECURITY_LEVEL_POLICY -> updateTypedConfig(
+                        policyName,
+                        dto,
+                        operatorEmployeeId,
+                        SecurityLevelPolicyConfig.class,
+                        SecurityLevelPolicyConfig::new
+                );
+                case ENVIRONMENT_ACCESS_POLICY -> updateTypedConfig(
+                        policyName,
+                        dto,
+                        operatorEmployeeId,
+                        EnvironmentAccessPolicyConfig.class,
+                        EnvironmentAccessPolicyConfig::new
+                );
+                case HISTORICAL_EXPORT_POLICY -> updateTypedConfig(
+                        policyName,
+                        dto,
+                        operatorEmployeeId,
+                        HistoricalExportPolicyConfig.class,
+                        HistoricalExportPolicyConfig::new
+                );
+                default -> throw new BizException("Unsupported policy name: " + policyName);
+            };
+        } catch (RuntimeException exception) {
+            safeRecordPolicyFailure(operatorEmployeeId, policyName, dto, exception.getMessage());
+            throw exception;
         }
-
-        return switch (policyName) {
-            case SECURITY_LEVEL_POLICY -> updateTypedConfig(
-                    policyName,
-                    dto,
-                    SecurityLevelPolicyConfig.class,
-                    SecurityLevelPolicyConfig::new
-            );
-            case ENVIRONMENT_ACCESS_POLICY -> updateTypedConfig(
-                    policyName,
-                    dto,
-                    EnvironmentAccessPolicyConfig.class,
-                    EnvironmentAccessPolicyConfig::new
-            );
-            case HISTORICAL_EXPORT_POLICY -> updateTypedConfig(
-                    policyName,
-                    dto,
-                    HistoricalExportPolicyConfig.class,
-                    HistoricalExportPolicyConfig::new
-            );
-            default -> throw new BizException("Unsupported policy name: " + policyName);
-        };
     }
 
     private <T extends ToggleablePolicyConfig> T loadConfig(
@@ -174,8 +187,13 @@ public class PolicyConfigServiceImpl implements PolicyConfigService {
     private <T extends ToggleablePolicyConfig> PolicyConfigDTO updateTypedConfig(
             String policyName,
             UpdatePolicyConfigDTO dto,
+            Long operatorEmployeeId,
             Class<T> configType,
             Supplier<T> defaultSupplier) {
+        T previousConfig = loadConfig(policyName, configType, defaultSupplier);
+        Map<String, Object> oldConditions = objectMapper.convertValue(previousConfig, MAP_TYPE);
+        oldConditions.remove("enabled");
+
         T mergedConfig = loadConfig(policyName, configType, defaultSupplier);
         mergeUpdate(mergedConfig, dto.getConditions());
 
@@ -203,7 +221,24 @@ public class PolicyConfigServiceImpl implements PolicyConfigService {
             policyConfigMapper.update(saving);
         }
 
+        Map<String, Object> detail = new LinkedHashMap<>();
+        Map<String, Object> newConditions = objectMapper.convertValue(mergedConfig, MAP_TYPE);
+        newConditions.remove("enabled");
+        detail.put("operatorEmployeeId", operatorEmployeeId);
+        detail.put("policyName", policyName);
+        detail.put("oldEnabled", previousConfig.getEnabled());
+        detail.put("newEnabled", mergedConfig.getEnabled());
+        detail.put("oldConditions", oldConditions);
+        detail.put("newConditions", newConditions);
+
         evictPolicyCache(policyName);
+        auditLogService.recordBusinessEvent(
+                operatorEmployeeId,
+                "POLICY",
+                saving.getPolicyId(),
+                Action.UPDATE_POLICY_CONFIG,
+                detail
+        );
         return toPolicyConfigDTO(policyName);
     }
 
@@ -359,6 +394,32 @@ public class PolicyConfigServiceImpl implements PolicyConfigService {
     private void ensurePolicyAdmin(Long operatorEmployeeId) {
         if (!isPolicyAdmin(operatorEmployeeId)) {
             throw new BizException("Only the policy admin can maintain policy parameters");
+        }
+    }
+
+    private void safeRecordPolicyFailure(
+            Long operatorEmployeeId,
+            String policyName,
+            UpdatePolicyConfigDTO dto,
+            String reason) {
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("operatorEmployeeId", operatorEmployeeId);
+        detail.put("policyName", policyName);
+        detail.put("requestedEnabled", dto != null ? dto.getEnabled() : null);
+        detail.put("requestedConditions", dto != null ? dto.getConditions() : null);
+        detail.put("result", "FAILURE");
+
+        try {
+            auditLogService.recordSecurityEvent(
+                    operatorEmployeeId,
+                    "POLICY",
+                    null,
+                    Action.UPDATE_POLICY_CONFIG,
+                    reason,
+                    detail
+            );
+        } catch (RuntimeException auditException) {
+            log.warn("Failed to record denied policy update for {}", policyName, auditException);
         }
     }
 

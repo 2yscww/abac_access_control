@@ -16,6 +16,7 @@ import com.xie.platform.model.Department;
 import com.xie.platform.model.Employees;
 import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeStatus;
+import com.xie.platform.model.enumValue.NetworkZone;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -72,6 +76,7 @@ class AuditLogServiceImplTest {
         Environment environment = Environment.builder()
                 .requestTime(requestTime)
                 .ipAddress("10.10.10.8")
+                .networkZone(NetworkZone.INTERNAL)
                 .requestUri("/api/asset/55")
                 .build();
         DecisionResult result = DecisionResult.deny("SecurityLevelPolicy", "安全策略拒绝：SecurityLevelPolicy");
@@ -94,6 +99,7 @@ class AuditLogServiceImplTest {
         assertEquals(ProjectPhase.DEVELOPMENT.getCode(), auditLog.getAssetsStage());
         assertEquals(SecurityLevel.INTERNAL.getLevel(), auditLog.getSecurityLevel());
         assertEquals("10.10.10.8", auditLog.getRequestIp());
+        assertEquals(NetworkZone.INTERNAL, auditLog.getNetworkZone());
         assertEquals("/api/asset/55", auditLog.getRequestUri());
         assertEquals(requestTime, auditLog.getRequestTime());
         assertNull(auditLog.getDetailJson());
@@ -127,8 +133,67 @@ class AuditLogServiceImplTest {
         assertEquals("ALLOW", auditLog.getDecision());
         assertEquals("BUSINESS", auditLog.getTriggerPolicy());
         assertEquals("{\"deptId\":3,\"newManagerId\":9}", auditLog.getDetailJson());
+        assertEquals(NetworkZone.UNKNOWN, auditLog.getNetworkZone());
         assertNotNull(auditLog.getRequestTime());
         assertNull(auditLog.getProjectId());
+    }
+
+    @Test
+    void recordBusinessEvent_shouldResolveForwardedIpAndNetworkZone() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-Forwarded-For", "203.0.113.9, 10.0.0.1");
+        request.setRequestURI("/api/department/assign-manager");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        Map<String, Object> detail = Map.of("deptId", 3L);
+        when(objectMapper.writeValueAsString(detail)).thenReturn("{\"deptId\":3}");
+
+        try {
+            auditLogService.recordBusinessEvent(
+                    7L,
+                    "DEPARTMENT",
+                    3L,
+                    Action.ASSIGN_DEPARTMENT_MANAGER,
+                    detail
+            );
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogMapper).insert(captor.capture());
+
+        AuditLog auditLog = captor.getValue();
+        assertEquals("203.0.113.9", auditLog.getRequestIp());
+        assertEquals(NetworkZone.PUBLIC, auditLog.getNetworkZone());
+        assertEquals("/api/department/assign-manager", auditLog.getRequestUri());
+    }
+
+    @Test
+    void recordSecurityEvent_shouldAllowAnonymousFailureAudit() throws Exception {
+        Map<String, Object> detail = Map.of("employeeCode", "ghost");
+        when(objectMapper.writeValueAsString(detail)).thenReturn("{\"employeeCode\":\"ghost\"}");
+
+        auditLogService.recordSecurityEvent(
+                null,
+                "AUTH",
+                null,
+                Action.LOGIN,
+                "员工不存在",
+                detail
+        );
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogMapper).insert(captor.capture());
+
+        AuditLog auditLog = captor.getValue();
+        assertNull(auditLog.getEmployeeId());
+        assertEquals("AUTH", auditLog.getResourceType());
+        assertEquals("LOGIN", auditLog.getAction());
+        assertEquals("DENY", auditLog.getDecision());
+        assertEquals("SECURITY_EVENT", auditLog.getTriggerPolicy());
+        assertEquals("员工不存在", auditLog.getDenyReason());
+        assertEquals("{\"employeeCode\":\"ghost\"}", auditLog.getDetailJson());
     }
 
     @Test

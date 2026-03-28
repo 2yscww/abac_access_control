@@ -26,5 +26,14 @@ public interface AuditLogService {
             Map<String, Object> detail
     );
 
+    void recordSecurityEvent(
+            Long employeeId,
+            String resourceType,
+            Long resourceId,
+            Action action,
+            String denyReason,
+            Map<String, Object> detail
+    );
+
     Map<String, Object> queryAuditLogs(AuditLogQueryDTO query, Long operatorEmployeeId);
 }

@@ -11,7 +11,13 @@ public interface ProjectMemberService {
 
     void initializeProjectMembers(Long projectId, Long creatorEmployeeId, Long ownerId, ProjectPhase projectPhase);
 
-    void syncMembersForPhaseTransition(Long projectId, ProjectPhase newPhase, Long nextOwnerId);
+    void syncMembersForPhaseTransition(
+            Long projectId,
+            ProjectPhase currentPhase,
+            ProjectPhase newPhase,
+            Long nextOwnerId,
+            Long operatorEmployeeId
+    );
 
     void ensureProjectOwnerMembership(Long projectId, Long ownerId, ProjectPhase projectPhase);
 

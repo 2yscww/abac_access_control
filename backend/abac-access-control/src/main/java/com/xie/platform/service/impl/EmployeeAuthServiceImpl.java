@@ -23,6 +23,8 @@ import com.xie.platform.service.PolicyConfigService;
 import com.xie.platform.service.ProjectMemberService;
 import com.xie.platform.service.result.LoginResult;
 import com.xie.platform.utils.JwtUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,8 @@ import java.util.Map;
 
 @Service
 public class EmployeeAuthServiceImpl implements EmployeeAuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(EmployeeAuthServiceImpl.class);
 
     @Autowired
     private EmployeesMapper employeesMapper;
@@ -68,16 +72,40 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         if (employee == null) {
             result.setSuccess(false);
             result.setMessage("员工不存在");
+            safeRecordSecurityEvent(
+                    null,
+                    "AUTH",
+                    null,
+                    Action.LOGIN,
+                    "员工不存在",
+                    buildAuthFailureDetail(employeeCode, null, "员工不存在")
+            );
             return result;
         }
         if (employee.getStatus() != EmployeeStatus.ACTIVE) {
             result.setSuccess(false);
             result.setMessage("员工状态不可用");
+            safeRecordSecurityEvent(
+                    employee.getEmployeeId(),
+                    "AUTH",
+                    employee.getEmployeeId(),
+                    Action.LOGIN,
+                    "员工状态不可用",
+                    buildAuthFailureDetail(employeeCode, employee, "员工状态不可用")
+            );
             return result;
         }
         if (!passwordEncoder.matches(rawPassword, employee.getPassword())) {
             result.setSuccess(false);
             result.setMessage("密码错误");
+            safeRecordSecurityEvent(
+                    employee.getEmployeeId(),
+                    "AUTH",
+                    employee.getEmployeeId(),
+                    Action.LOGIN,
+                    "密码错误",
+                    buildAuthFailureDetail(employeeCode, employee, "密码错误")
+            );
             return result;
         }
 
@@ -88,10 +116,24 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
         if (Boolean.TRUE.equals(employee.getMustChangePassword())) {
             result.setTempToken(jwtUtil.generateTempToken(employee.getEmployeeId()));
+            auditLogService.recordBusinessEvent(
+                    employee.getEmployeeId(),
+                    "AUTH",
+                    employee.getEmployeeId(),
+                    Action.LOGIN,
+                    buildLoginSuccessDetail(employee, "TEMP_TOKEN", true)
+            );
             return result;
         }
 
         result.setToken(jwtUtil.generateToken(buildSubject(employee)));
+        auditLogService.recordBusinessEvent(
+                employee.getEmployeeId(),
+                "AUTH",
+                employee.getEmployeeId(),
+                Action.LOGIN,
+                buildLoginSuccessDetail(employee, "ACCESS_TOKEN", false)
+        );
         return result;
     }
 
@@ -101,19 +143,71 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         try {
             employeeId = jwtUtil.parseAndValidateTempToken(tempToken);
         } catch (Exception exception) {
+            safeRecordSecurityEvent(
+                    null,
+                    "AUTH",
+                    null,
+                    Action.CHANGE_PASSWORD,
+                    "临时凭证无效或已过期，请重新登录",
+                    Map.of(
+                            "credentialType", "TEMP_TOKEN",
+                            "result", "FAILURE"
+                    )
+            );
             throw new BizException("临时凭证无效或已过期，请重新登录");
         }
 
         Employees employee = employeesMapper.selectByEmployeeId(employeeId);
         if (employee == null) {
+            safeRecordSecurityEvent(
+                    employeeId,
+                    "AUTH",
+                    employeeId,
+                    Action.CHANGE_PASSWORD,
+                    "员工不存在",
+                    Map.of(
+                            "employeeId", employeeId,
+                            "credentialType", "TEMP_TOKEN",
+                            "result", "FAILURE"
+                    )
+            );
             throw new BizException("员工不存在");
         }
         if (!passwordEncoder.matches(oldPassword, employee.getPassword())) {
+            safeRecordSecurityEvent(
+                    employeeId,
+                    "AUTH",
+                    employeeId,
+                    Action.CHANGE_PASSWORD,
+                    "原密码错误",
+                    Map.of(
+                            "employeeId", employeeId,
+                            "employeeCode", employee.getEmployeeCode(),
+                            "employeeName", employee.getEmployeeName(),
+                            "credentialType", "TEMP_TOKEN",
+                            "result", "FAILURE"
+                    )
+            );
             throw new BizException("原密码错误");
         }
 
         employeesMapper.updatePassword(employeeId, passwordEncoder.encode(newPassword));
-        return jwtUtil.generateToken(buildSubject(employee));
+        String token = jwtUtil.generateToken(buildSubject(employee));
+        auditLogService.recordBusinessEvent(
+                employeeId,
+                "AUTH",
+                employeeId,
+                Action.CHANGE_PASSWORD,
+                Map.of(
+                        "employeeId", employeeId,
+                        "employeeCode", employee.getEmployeeCode(),
+                        "employeeName", employee.getEmployeeName(),
+                        "credentialType", "TEMP_TOKEN",
+                        "issuedTokenType", "ACCESS_TOKEN",
+                        "result", "SUCCESS"
+                )
+        );
+        return token;
     }
 
     @Override
@@ -319,6 +413,41 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         }
         if (operatorDept.getDeptType() != DeptType.HR) {
             throw new BizException("仅人事部允许执行该操作");
+        }
+    }
+
+    private Map<String, Object> buildLoginSuccessDetail(Employees employee, String tokenType, boolean mustChangePassword) {
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("employeeId", employee.getEmployeeId());
+        detail.put("employeeCode", employee.getEmployeeCode());
+        detail.put("employeeName", employee.getEmployeeName());
+        detail.put("mustChangePassword", mustChangePassword);
+        detail.put("issuedTokenType", tokenType);
+        detail.put("result", "SUCCESS");
+        return detail;
+    }
+
+    private Map<String, Object> buildAuthFailureDetail(String employeeCode, Employees employee, String reason) {
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("employeeCode", employeeCode);
+        detail.put("employeeId", employee != null ? employee.getEmployeeId() : null);
+        detail.put("employeeName", employee != null ? employee.getEmployeeName() : null);
+        detail.put("result", "FAILURE");
+        detail.put("reason", reason);
+        return detail;
+    }
+
+    private void safeRecordSecurityEvent(
+            Long employeeId,
+            String resourceType,
+            Long resourceId,
+            Action action,
+            String denyReason,
+            Map<String, Object> detail) {
+        try {
+            auditLogService.recordSecurityEvent(employeeId, resourceType, resourceId, action, denyReason, detail);
+        } catch (RuntimeException exception) {
+            log.warn("Failed to record security audit event for action {}", action, exception);
         }
     }
 }

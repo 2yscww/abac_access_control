@@ -1,5 +1,6 @@
 package com.xie.platform.model;
 
+import com.xie.platform.model.enumValue.NetworkZone;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -9,7 +10,7 @@ public class AuditLog {
 
     private Long logId;
 
-    /** 发起本次访问的员工 */
+    /** 发起本次访问的员工，匿名失败事件允许为空 */
     private Long employeeId;
 
     /** 资源类型快照：PROJECT / ASSET */
@@ -37,6 +38,7 @@ public class AuditLog {
     private Integer securityLevel;
 
     private String requestIp;
+    private NetworkZone networkZone;
     private String requestUri;
     private LocalDateTime requestTime;
     private String detailJson;

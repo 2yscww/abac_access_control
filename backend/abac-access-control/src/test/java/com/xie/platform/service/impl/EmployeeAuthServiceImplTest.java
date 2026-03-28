@@ -17,6 +17,7 @@ import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.service.AuditLogService;
 import com.xie.platform.service.PolicyConfigService;
 import com.xie.platform.service.ProjectMemberService;
+import com.xie.platform.service.result.LoginResult;
 import com.xie.platform.utils.JwtUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -69,6 +71,102 @@ class EmployeeAuthServiceImplTest {
 
     @InjectMocks
     private EmployeeAuthServiceImpl employeeAuthService;
+
+    @Test
+    void login_shouldAuditDeniedAttemptWhenEmployeeDoesNotExist() {
+        when(employeesMapper.selectByEmployeeCode("404")).thenReturn(null);
+
+        LoginResult result = employeeAuthService.login("404", "bad-password");
+
+        assertFalse(result.isSuccess());
+        assertEquals("员工不存在", result.getMessage());
+        verify(auditLogService).recordSecurityEvent(
+                isNull(),
+                eq("AUTH"),
+                isNull(),
+                eq(Action.LOGIN),
+                eq("员工不存在"),
+                any(Map.class)
+        );
+    }
+
+    @Test
+    void login_shouldAuditSuccessfulAccessTokenLogin() {
+        Employees employee = buildOperator(20L, 3L, EmployeeStatus.ACTIVE);
+        employee.setEmployeeCode("1020");
+        employee.setEmployeeName("Alice");
+        employee.setPassword("ENCODED_PASSWORD");
+        employee.setMustChangePassword(false);
+        employee.setBranchId(3L);
+        employee.setLevel(EmployeeLevel.P6);
+
+        when(employeesMapper.selectByEmployeeCode("1020")).thenReturn(employee);
+        when(passwordEncoder.matches("correct-password", "ENCODED_PASSWORD")).thenReturn(true);
+        when(departmentMapper.selectById(3L)).thenReturn(buildDepartment(3L, DeptType.RD));
+        when(jwtUtil.generateToken(any())).thenReturn("ACCESS_TOKEN");
+
+        LoginResult result = employeeAuthService.login("1020", "correct-password");
+
+        assertTrue(result.isSuccess());
+        assertEquals("ACCESS_TOKEN", result.getToken());
+        verify(auditLogService).recordBusinessEvent(
+                eq(20L),
+                eq("AUTH"),
+                eq(20L),
+                eq(Action.LOGIN),
+                any(Map.class)
+        );
+    }
+
+    @Test
+    void changePassword_shouldAuditDeniedAttemptWhenTempTokenInvalid() {
+        when(jwtUtil.parseAndValidateTempToken("bad-temp-token"))
+                .thenThrow(new IllegalArgumentException("invalid"));
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> employeeAuthService.changePassword("bad-temp-token", "old", "new")
+        );
+
+        assertEquals("临时凭证无效或已过期，请重新登录", exception.getMessage());
+        verify(auditLogService).recordSecurityEvent(
+                isNull(),
+                eq("AUTH"),
+                isNull(),
+                eq(Action.CHANGE_PASSWORD),
+                eq("临时凭证无效或已过期，请重新登录"),
+                any(Map.class)
+        );
+    }
+
+    @Test
+    void changePassword_shouldAuditSuccessfulReset() {
+        Employees employee = buildOperator(20L, 3L, EmployeeStatus.ACTIVE);
+        employee.setEmployeeCode("1020");
+        employee.setEmployeeName("Alice");
+        employee.setPassword("ENCODED_OLD_PASSWORD");
+        employee.setBranchId(3L);
+        employee.setLevel(EmployeeLevel.P6);
+
+        when(jwtUtil.parseAndValidateTempToken("temp-token")).thenReturn(20L);
+        when(employeesMapper.selectByEmployeeId(20L)).thenReturn(employee);
+        when(passwordEncoder.matches("old-password", "ENCODED_OLD_PASSWORD")).thenReturn(true);
+        when(passwordEncoder.encode("new-password")).thenReturn("ENCODED_NEW_PASSWORD");
+        when(departmentMapper.selectById(3L)).thenReturn(buildDepartment(3L, DeptType.RD));
+        when(jwtUtil.generateToken(any())).thenReturn("ACCESS_TOKEN");
+
+        String token = employeeAuthService.changePassword("temp-token", "old-password", "new-password");
+
+        assertEquals("ACCESS_TOKEN", token);
+        verify(employeesMapper).updatePassword(20L, "ENCODED_NEW_PASSWORD");
+        verify(auditLogService).recordBusinessEvent(
+                eq(20L),
+                eq("AUTH"),
+                eq(20L),
+                eq(Action.CHANGE_PASSWORD),
+                any(Map.class)
+        );
+    }
 
     @Test
     void createEmployee_shouldRejectNonHrOperator() {

@@ -4,6 +4,7 @@ import com.xie.platform.access.action.Action;
 import com.xie.platform.access.pep.PolicyEnforcementPoint;
 import com.xie.platform.dto.CreateProjectDTO;
 import com.xie.platform.dto.UpdateProjectPhaseDTO;
+import com.xie.platform.exception.BizException;
 import com.xie.platform.mapper.DepartmentMapper;
 import com.xie.platform.mapper.EmployeesMapper;
 import com.xie.platform.mapper.ProjectMapper;
@@ -15,6 +16,7 @@ import com.xie.platform.model.enumValue.EmployeeLevel;
 import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
+import com.xie.platform.service.AuditLogService;
 import com.xie.platform.service.ProjectMemberService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,9 +24,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +50,9 @@ class ProjectServiceImplTest {
 
     @Mock
     private ProjectMemberService projectMemberService;
+
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private ProjectServiceImpl projectService;
@@ -90,7 +98,62 @@ class ProjectServiceImplTest {
 
         verify(pep).checkProjectAccess(7L, 11L, Action.ADVANCE_PHASE);
         verify(projectMapper).updatePhase(11L, ProjectPhase.TEST.getCode(), 12L);
-        verify(projectMemberService).syncMembersForPhaseTransition(11L, ProjectPhase.TEST, 12L);
+        verify(projectMemberService).syncMembersForPhaseTransition(11L, ProjectPhase.DEVELOPMENT, ProjectPhase.TEST, 12L, 7L);
+        verify(auditLogService).recordBusinessEvent(
+                eq(7L),
+                eq("PROJECT"),
+                eq(11L),
+                eq(Action.ADVANCE_PHASE),
+                any()
+        );
+    }
+
+    @Test
+    void updateProjectPhase_shouldRejectSkippingStages() {
+        UpdateProjectPhaseDTO dto = new UpdateProjectPhaseDTO();
+        dto.setProjectId(11L);
+        dto.setNewPhase(ProjectPhase.RELEASE.getCode());
+        dto.setNextOwnerId(12L);
+
+        Projects project = new Projects();
+        project.setProjectId(11L);
+        project.setProjectPhase(ProjectPhase.DEVELOPMENT);
+
+        when(projectMapper.selectById(11L)).thenReturn(project);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> projectService.updateProjectPhase(dto, 7L)
+        );
+
+        assertEquals("项目阶段只能按既定顺序推进到下一阶段", exception.getMessage());
+        verify(pep).checkProjectAccess(7L, 11L, Action.ADVANCE_PHASE);
+        verify(projectMapper, never()).updatePhase(any(), any(), any());
+        verify(projectMemberService, never()).syncMembersForPhaseTransition(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void updateProjectPhase_shouldRejectRollback() {
+        UpdateProjectPhaseDTO dto = new UpdateProjectPhaseDTO();
+        dto.setProjectId(11L);
+        dto.setNewPhase(ProjectPhase.REQUIREMENT.getCode());
+        dto.setNextOwnerId(13L);
+
+        Projects project = new Projects();
+        project.setProjectId(11L);
+        project.setProjectPhase(ProjectPhase.DEVELOPMENT);
+
+        when(projectMapper.selectById(11L)).thenReturn(project);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> projectService.updateProjectPhase(dto, 7L)
+        );
+
+        assertEquals("项目阶段只能按既定顺序推进到下一阶段", exception.getMessage());
+        verify(pep).checkProjectAccess(7L, 11L, Action.ADVANCE_PHASE);
+        verify(projectMapper, never()).updatePhase(any(), any(), any());
+        verify(projectMemberService, never()).syncMembersForPhaseTransition(any(), any(), any(), any(), any());
     }
 
     @Test

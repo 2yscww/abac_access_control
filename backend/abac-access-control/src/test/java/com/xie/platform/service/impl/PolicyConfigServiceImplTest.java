@@ -9,6 +9,8 @@ import com.xie.platform.mapper.PolicyConfigMapper;
 import com.xie.platform.model.Department;
 import com.xie.platform.model.PolicyConfig;
 import com.xie.platform.model.enumValue.DeptType;
+import com.xie.platform.access.action.Action;
+import com.xie.platform.service.AuditLogService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +39,9 @@ class PolicyConfigServiceImplTest {
 
     @Mock
     private DepartmentMapper departmentMapper;
+
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private PolicyConfigServiceImpl policyConfigService;
@@ -93,6 +99,13 @@ class PolicyConfigServiceImplTest {
         assertEquals(false, result.getEnabled());
         assertEquals("09:00", result.getConditions().get("workStart"));
         assertEquals("21:00", result.getConditions().get("workEnd"));
+        verify(auditLogService).recordBusinessEvent(
+                eq(99L),
+                eq("POLICY"),
+                eq(1L),
+                eq(Action.UPDATE_POLICY_CONFIG),
+                any(Map.class)
+        );
     }
 
     @Test
@@ -112,6 +125,35 @@ class PolicyConfigServiceImplTest {
         assertEquals(
                 "Security thresholds must satisfy PUBLIC <= INTERNAL <= CONFIDENTIAL <= TOP_SECRET",
                 exception.getMessage()
+        );
+        verify(auditLogService).recordSecurityEvent(
+                eq(99L),
+                eq("POLICY"),
+                isNull(),
+                eq(Action.UPDATE_POLICY_CONFIG),
+                eq("Security thresholds must satisfy PUBLIC <= INTERNAL <= CONFIDENTIAL <= TOP_SECRET"),
+                any(Map.class)
+        );
+    }
+
+    @Test
+    void updatePolicyConfig_shouldAuditDeniedAttemptForNonAdmin() {
+        UpdatePolicyConfigDTO dto = new UpdatePolicyConfigDTO();
+        dto.setEnabled(true);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> policyConfigService.updatePolicyConfig("SecurityLevelPolicy", dto, 100L)
+        );
+
+        assertEquals("Only the policy admin can maintain policy parameters", exception.getMessage());
+        verify(auditLogService).recordSecurityEvent(
+                eq(100L),
+                eq("POLICY"),
+                isNull(),
+                eq(Action.UPDATE_POLICY_CONFIG),
+                eq("Only the policy admin can maintain policy parameters"),
+                any(Map.class)
         );
     }
 

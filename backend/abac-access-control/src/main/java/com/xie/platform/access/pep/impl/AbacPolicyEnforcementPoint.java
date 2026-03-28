@@ -18,7 +18,9 @@ import com.xie.platform.model.Department;
 import com.xie.platform.model.Employees;
 import com.xie.platform.model.ProjectAssets;
 import com.xie.platform.model.Projects;
+import com.xie.platform.model.enumValue.NetworkZone;
 import com.xie.platform.service.AuditLogService;
+import com.xie.platform.utils.NetworkContextUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -187,16 +189,19 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
     private Environment buildEnvironment() {
         LocalDateTime requestTime = LocalDateTime.now();
         String ipAddress = "unknown";
+        NetworkZone networkZone = NetworkZone.UNKNOWN;
 
         try {
             ServletRequestAttributes attributes =
                     (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
-                ipAddress = getClientIpAddress(request);
+                ipAddress = NetworkContextUtil.extractClientIp(request);
+                networkZone = NetworkContextUtil.resolveNetworkZone(ipAddress);
                 return Environment.builder()
                         .requestTime(requestTime)
                         .ipAddress(ipAddress)
+                        .networkZone(networkZone)
                         .requestUri(request.getRequestURI())
                         .build();
             }
@@ -206,25 +211,8 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
         return Environment.builder()
                 .requestTime(requestTime)
                 .ipAddress(ipAddress)
+                .networkZone(networkZone)
                 .requestUri(null)
                 .build();
-    }
-
-    private String getClientIpAddress(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-
-        return ip;
     }
 }

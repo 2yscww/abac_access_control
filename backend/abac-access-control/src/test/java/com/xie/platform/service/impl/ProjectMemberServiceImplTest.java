@@ -64,10 +64,17 @@ class ProjectMemberServiceImplTest {
         when(projectMemberMapper.selectActiveByProjectId(11L)).thenReturn(List.of(productMember, rdMember));
         when(projectMemberMapper.selectByProjectIdAndEmployeeId(11L, 12L)).thenReturn(null);
 
-        projectMemberService.syncMembersForPhaseTransition(11L, ProjectPhase.TEST, 12L);
+        projectMemberService.syncMembersForPhaseTransition(11L, ProjectPhase.DEVELOPMENT, ProjectPhase.TEST, 12L, 99L);
 
         verify(projectMemberMapper).deactivate(11L, 7L);
         verify(projectMemberMapper, never()).deactivate(11L, 8L);
+        verify(auditLogService).recordBusinessEvent(
+                eq(99L),
+                eq("PROJECT"),
+                eq(11L),
+                eq(Action.AUTO_REMOVE_PROJECT_MEMBER),
+                any(Map.class)
+        );
 
         ArgumentCaptor<ProjectMember> memberCaptor = ArgumentCaptor.forClass(ProjectMember.class);
         verify(projectMemberMapper).insert(memberCaptor.capture());

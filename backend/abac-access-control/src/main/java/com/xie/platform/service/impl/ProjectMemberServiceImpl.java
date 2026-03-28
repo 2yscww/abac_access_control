@@ -67,8 +67,13 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
 
     @Override
     @Transactional
-    public void syncMembersForPhaseTransition(Long projectId, ProjectPhase newPhase, Long nextOwnerId) {
-        if (projectId == null || newPhase == null) {
+    public void syncMembersForPhaseTransition(
+            Long projectId,
+            ProjectPhase currentPhase,
+            ProjectPhase newPhase,
+            Long nextOwnerId,
+            Long operatorEmployeeId) {
+        if (projectId == null || currentPhase == null || newPhase == null) {
             throw new BizException("项目成员同步缺少必要参数");
         }
 
@@ -80,6 +85,13 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
                 continue;
             }
             projectMemberMapper.deactivate(projectId, member.getEmployeeId());
+            auditLogService.recordBusinessEvent(
+                    operatorEmployeeId,
+                    "PROJECT",
+                    projectId,
+                    Action.AUTO_REMOVE_PROJECT_MEMBER,
+                    buildAutoRemovalDetail(projectId, currentPhase, newPhase, member, operatorEmployeeId)
+            );
         }
 
         if (newPhase != ProjectPhase.ARCHIVED) {
@@ -277,5 +289,24 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
             throw new BizException(notFoundMessage);
         }
         return department;
+    }
+
+    private Map<String, Object> buildAutoRemovalDetail(
+            Long projectId,
+            ProjectPhase currentPhase,
+            ProjectPhase newPhase,
+            ProjectMemberDTO member,
+            Long operatorEmployeeId) {
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("operatorEmployeeId", operatorEmployeeId);
+        detail.put("projectId", projectId);
+        detail.put("fromPhase", currentPhase != null ? currentPhase.name() : null);
+        detail.put("toPhase", newPhase != null ? newPhase.name() : null);
+        detail.put("targetEmployeeId", member.getEmployeeId());
+        detail.put("targetEmployeeCode", member.getEmployeeCode());
+        detail.put("targetEmployeeName", member.getEmployeeName());
+        detail.put("targetDeptType", member.getDeptType() != null ? member.getDeptType().name() : null);
+        detail.put("reason", "PHASE_TRANSITION_AUTO_CLEANUP");
+        return detail;
     }
 }

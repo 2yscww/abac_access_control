@@ -14,9 +14,11 @@ import com.xie.platform.model.Department;
 import com.xie.platform.model.Employees;
 import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeStatus;
+import com.xie.platform.model.enumValue.NetworkZone;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xie.platform.service.AuditLogService;
+import com.xie.platform.utils.NetworkContextUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -67,6 +69,7 @@ public class AuditLogServiceImpl implements AuditLogService {
         auditLog.setAssetsStage(resource.getAssetsStage() != null ? resource.getAssetsStage().getCode() : null);
         auditLog.setSecurityLevel(resource.getSecurityLevel() != null ? resource.getSecurityLevel().getLevel() : null);
         auditLog.setRequestIp(environment != null ? environment.getIpAddress() : null);
+        auditLog.setNetworkZone(resolveNetworkZone(environment));
         auditLog.setRequestUri(environment != null ? environment.getRequestUri() : null);
 
         // Record the authorization decision time rather than the final business commit time.
@@ -92,24 +95,47 @@ public class AuditLogServiceImpl implements AuditLogService {
             throw new BizException("业务审计缺少动作类型");
         }
 
-        AuditLog auditLog = new AuditLog();
-        auditLog.setEmployeeId(employeeId);
-        auditLog.setResourceType(resourceType);
-        auditLog.setResourceId(resourceId);
-        auditLog.setAction(action.name());
-        auditLog.setDecision("ALLOW");
-        auditLog.setTriggerPolicy("BUSINESS");
-        auditLog.setRequestTime(LocalDateTime.now());
-        auditLog.setDetailJson(serializeDetail(detail));
+        AuditLog auditLog = buildEventAuditLog(
+                employeeId,
+                resourceType,
+                resourceId,
+                action,
+                "ALLOW",
+                "BUSINESS",
+                null,
+                detail
+        );
+        enrichRequestContext(auditLog);
+        auditLogMapper.insert(auditLog);
+    }
 
-        ServletRequestAttributes attributes =
-                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attributes != null) {
-            HttpServletRequest request = attributes.getRequest();
-            auditLog.setRequestIp(request.getRemoteAddr());
-            auditLog.setRequestUri(request.getRequestURI());
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordSecurityEvent(
+            Long employeeId,
+            String resourceType,
+            Long resourceId,
+            Action action,
+            String denyReason,
+            Map<String, Object> detail) {
+        if (resourceType == null || resourceType.isBlank()) {
+            throw new BizException("安全审计缺少资源类型");
+        }
+        if (action == null) {
+            throw new BizException("安全审计缺少动作类型");
         }
 
+        AuditLog auditLog = buildEventAuditLog(
+                employeeId,
+                resourceType,
+                resourceId,
+                action,
+                "DENY",
+                "SECURITY_EVENT",
+                denyReason,
+                detail
+        );
+        enrichRequestContext(auditLog);
         auditLogMapper.insert(auditLog);
     }
 
@@ -188,5 +214,53 @@ public class AuditLogServiceImpl implements AuditLogService {
         } catch (JsonProcessingException exception) {
             throw new BizException("业务审计明细序列化失败");
         }
+    }
+
+    private AuditLog buildEventAuditLog(
+            Long employeeId,
+            String resourceType,
+            Long resourceId,
+            Action action,
+            String decision,
+            String triggerPolicy,
+            String denyReason,
+            Map<String, Object> detail) {
+        AuditLog auditLog = new AuditLog();
+        auditLog.setEmployeeId(employeeId);
+        auditLog.setResourceType(resourceType);
+        auditLog.setResourceId(resourceId);
+        auditLog.setProjectId("PROJECT".equals(resourceType) ? resourceId : null);
+        auditLog.setAction(action.name());
+        auditLog.setDecision(decision);
+        auditLog.setTriggerPolicy(triggerPolicy);
+        auditLog.setDenyReason(denyReason);
+        auditLog.setRequestTime(LocalDateTime.now());
+        auditLog.setDetailJson(serializeDetail(detail));
+        auditLog.setNetworkZone(NetworkZone.UNKNOWN);
+        return auditLog;
+    }
+
+    private void enrichRequestContext(AuditLog auditLog) {
+        ServletRequestAttributes attributes =
+                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {
+            return;
+        }
+
+        HttpServletRequest request = attributes.getRequest();
+        String clientIp = NetworkContextUtil.extractClientIp(request);
+        auditLog.setRequestIp(clientIp);
+        auditLog.setNetworkZone(NetworkContextUtil.resolveNetworkZone(clientIp));
+        auditLog.setRequestUri(request.getRequestURI());
+    }
+
+    private NetworkZone resolveNetworkZone(Environment environment) {
+        if (environment == null) {
+            return NetworkZone.UNKNOWN;
+        }
+        if (environment.getNetworkZone() != null) {
+            return environment.getNetworkZone();
+        }
+        return NetworkContextUtil.resolveNetworkZone(environment.getIpAddress());
     }
 }

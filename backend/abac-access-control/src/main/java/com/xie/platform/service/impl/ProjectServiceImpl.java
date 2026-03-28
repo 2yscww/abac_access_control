@@ -18,6 +18,7 @@ import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeStatus;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
+import com.xie.platform.service.AuditLogService;
 import com.xie.platform.service.ProjectMemberService;
 import com.xie.platform.service.ProjectService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +46,9 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Autowired
     private ProjectMemberService projectMemberService;
+
+    @Autowired
+    private AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -173,9 +177,34 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BizException("已归档项目不能修改阶段");
         }
 
+        ProjectPhase currentPhase = project.getProjectPhase();
+        Long currentOwnerId = project.getOwnerId();
+        validatePhaseTransition(project.getProjectPhase(), newPhase);
         validateStageOwner(newPhase, dto.getNextOwnerId());
         projectMapper.updatePhase(dto.getProjectId(), newPhase.getCode(), dto.getNextOwnerId());
-        projectMemberService.syncMembersForPhaseTransition(dto.getProjectId(), newPhase, dto.getNextOwnerId());
+        projectMemberService.syncMembersForPhaseTransition(
+                dto.getProjectId(),
+                currentPhase,
+                newPhase,
+                dto.getNextOwnerId(),
+                employeeId
+        );
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("operatorEmployeeId", employeeId);
+        detail.put("projectId", project.getProjectId());
+        detail.put("projectName", project.getProjectName());
+        detail.put("fromPhase", currentPhase != null ? currentPhase.name() : null);
+        detail.put("toPhase", newPhase.name());
+        detail.put("oldOwnerId", currentOwnerId);
+        detail.put("newOwnerId", dto.getNextOwnerId());
+        auditLogService.recordBusinessEvent(
+                employeeId,
+                "PROJECT",
+                project.getProjectId(),
+                Action.ADVANCE_PHASE,
+                detail
+        );
     }
 
     @Override
@@ -242,6 +271,15 @@ public class ProjectServiceImpl implements ProjectService {
         }
         if (!department.getManagerId().equals(ownerId)) {
             throw new BizException("目标负责人必须等于阶段主责部门的 manager_id");
+        }
+    }
+
+    private void validatePhaseTransition(ProjectPhase currentPhase, ProjectPhase newPhase) {
+        if (currentPhase == null || newPhase == null) {
+            throw new BizException("项目阶段不能为空");
+        }
+        if (newPhase.getCode() != currentPhase.getCode() + 1) {
+            throw new BizException("项目阶段只能按既定顺序推进到下一阶段");
         }
     }
 
