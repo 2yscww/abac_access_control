@@ -222,7 +222,7 @@ CREATE TABLE policies (
 
 CREATE TABLE audit_logs (
     log_id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    employee_id BIGINT NOT NULL,
+    employee_id BIGINT,
     resource_type VARCHAR(32) NOT NULL,
     resource_id BIGINT,
     project_id BIGINT,
@@ -288,28 +288,35 @@ CREATE INDEX idx_audit_project
 -- audit_logs：安全审计日志表，用于记录系统操作行为与权限决策情况
 
 -- 字段说明
--- resource_type: PROJECT / ASSET
+-- resource_type: PROJECT / ASSET / EMPLOYEE / DEPARTMENT / AUTH / POLICY
 -- resource_id:
 --   - PROJECT 日志时，对应 project_id
 --   - ASSET 日志时，对应 asset_id
+--   - EMPLOYEE 日志时，对应 employee_id
+--   - DEPARTMENT 日志时，对应 dept_id
 -- project_id:
 --   - 项目日志时，等于 project_id
 --   - 资产日志时，表示资产所属项目
+--   - 其他资源类型时，可为空
 -- trigger_policy: 触发本次决策的规则名，例如 SecurityLevelPolicy
 -- project_phase / assets_stage / security_level:
 --   用于保存授权发生当下的资源快照，避免历史审计受后续资源变更影响
+-- request_ip: 请求来源 IP
+-- request_uri: 请求路径
+-- request_time: 操作发生时间
+-- detail_json: 业务审计详情 JSON
 
 
 -- log_id：审计日志唯一标识
--- user_id：执行操作的用户ID
+-- employee_id：执行操作的用户ID；匿名失败事件（如未知账号登录失败）允许为空
 -- resource_id：被访问的资源ID
--- action：操作类型（如 READ / WRITE / DELETE）
+-- action：操作类型（如 READ / WRITE / DELETE / ADVANCE_PHASE / EXPORT / LOGIN / CHANGE_PASSWORD / UPDATE_POLICY_CONFIG / AUTO_REMOVE_PROJECT_MEMBER）
 -- decision：权限决策结果（ALLOW / DENY）
--- matched_policies：命中的策略列表（JSON格式）
+-- matched_policies：未实现（当前系统不记录策略列表）
 -- deny_reason：拒绝访问原因
--- network_zone：访问网络环境（如内网、VPN、公网）
--- device_safety：设备安全评分（如杀毒/补丁状态）
--- access_time：操作发生时间
+-- network_zone：后端枚举约束字段，当前取值 INTERNAL / PUBLIC / LOOPBACK / UNKNOWN
+-- device_safety：未实现（当前系统未接入终端安全检测）
+-- access_time：已由 request_time 替代
 
 
 
