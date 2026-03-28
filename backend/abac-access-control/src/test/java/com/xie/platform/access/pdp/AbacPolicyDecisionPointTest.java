@@ -12,6 +12,7 @@ import com.xie.platform.access.policy.impl.SecurityLevelPolicy;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.access.resource.ResourceType;
 import com.xie.platform.access.subject.Subject;
+import com.xie.platform.mapper.AuditLogMapper;
 import com.xie.platform.mapper.DepartmentMapper;
 import com.xie.platform.model.Department;
 import com.xie.platform.model.enumValue.DeptType;
@@ -21,6 +22,7 @@ import com.xie.platform.model.enumValue.SecurityLevel;
 import com.xie.platform.service.ProjectMemberService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -28,6 +30,7 @@ import java.util.Arrays;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -41,15 +44,21 @@ class AbacPolicyDecisionPointTest {
     @BeforeEach
     void setUp() {
         DepartmentMapper departmentMapper = mock(DepartmentMapper.class);
+        AuditLogMapper auditLogMapper = mock(AuditLogMapper.class);
         projectMemberService = mock(ProjectMemberService.class);
         when(departmentMapper.selectById(1L)).thenReturn(buildDepartment(1L, DeptType.RD, 9L));
         when(projectMemberService.isActiveMember(anyLong(), anyLong())).thenReturn(true);
+        when(auditLogMapper.countRecentAllowedActions(anyLong(), any(), any(), any(LocalDateTime.class)))
+                .thenReturn(0);
+
+        HistoricalExportPolicy historicalExportPolicy = new HistoricalExportPolicy();
+        ReflectionTestUtils.setField(historicalExportPolicy, "auditLogMapper", auditLogMapper);
 
         pdp = new AbacPolicyDecisionPoint();
         pdp.allPolicies = Arrays.asList(
                 new SecurityLevelPolicy(),
                 new EnvironmentAccessPolicy(),
-                new HistoricalExportPolicy(),
+                historicalExportPolicy,
                 new ProjectMembershipPolicy(projectMemberService),
                 new PhaseAccessPolicy(),
                 new AssetStageAccessPolicy(),
@@ -106,6 +115,25 @@ class AbacPolicyDecisionPointTest {
                 .build();
 
         DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
+
+        assertTrue(result.isAllowed());
+        assertEquals("default-allow", result.getTriggerPolicy());
+    }
+
+    @Test
+    void assetPolicies_shouldAllowManagementExportingHistoricalAsset() {
+        when(projectMemberService.isActiveMember(11L, 1L)).thenReturn(false);
+
+        Subject subject = new Subject(1L, 1L, DeptType.MANAGEMENT, 1L, EmployeeLevel.VP, false);
+        Resource resource = Resource.builder()
+                .type(ResourceType.ASSET)
+                .projectId(11L)
+                .projectPhase(ProjectPhase.DEVELOPMENT)
+                .assetsStage(ProjectPhase.INIT)
+                .securityLevel(SecurityLevel.INTERNAL)
+                .build();
+
+        DecisionResult result = pdp.evaluate(subject, resource, Action.EXPORT, defaultEnv);
 
         assertTrue(result.isAllowed());
         assertEquals("default-allow", result.getTriggerPolicy());

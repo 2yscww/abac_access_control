@@ -24,6 +24,10 @@ import java.util.Set;
 @Component
 public class AssetStageAccessPolicy implements Policy {
 
+    private static boolean isReadLikeAction(Action action) {
+        return action == Action.READ || action == Action.EXPORT;
+    }
+
     @Override
     public String getName() {
         return "AssetStageAccessPolicy";
@@ -55,7 +59,7 @@ public class AssetStageAccessPolicy implements Policy {
             if (deptType != DeptType.MANAGEMENT) {
                 return PolicyResult.DENY;
             }
-            return action == Action.READ ? PolicyResult.ALLOW : PolicyResult.DENY;
+            return isReadLikeAction(action) ? PolicyResult.ALLOW : PolicyResult.DENY;
         }
 
         Set<DeptType> fullAccessDepts = getAllowedDepts(assetsStage);
@@ -64,7 +68,7 @@ public class AssetStageAccessPolicy implements Policy {
         }
 
         if (deptType == DeptType.MANAGEMENT) {
-            return action == Action.READ ? PolicyResult.ALLOW : PolicyResult.DENY;
+            return isReadLikeAction(action) ? PolicyResult.ALLOW : PolicyResult.DENY;
         }
 
         return PolicyResult.DENY;

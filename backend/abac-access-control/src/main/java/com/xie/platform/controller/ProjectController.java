@@ -3,6 +3,7 @@ package com.xie.platform.controller;
 import com.xie.platform.common.Response;
 import com.xie.platform.dto.AddProjectMemberDTO;
 import com.xie.platform.dto.CreateProjectDTO;
+import com.xie.platform.dto.PhaseOwnerPreviewDTO;
 import com.xie.platform.dto.ProjectMemberDTO;
 import com.xie.platform.dto.ProjectQueryDTO;
 import com.xie.platform.dto.UpdateProjectPhaseDTO;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -51,6 +53,15 @@ public class ProjectController {
     public Response<Map<String, Object>> queryProjects(ProjectQueryDTO query) {
         Long employeeId = CurrentUserContext.getRequiredEmployeeId();
         Map<String, Object> result = projectService.queryProjects(query, employeeId);
+        return Response.Success(result, null);
+    }
+
+    @GetMapping("/{id}/phase-owner-preview")
+    public Response<PhaseOwnerPreviewDTO> getPhaseOwnerPreview(
+            @PathVariable("id") Long projectId,
+            @RequestParam("targetPhase") Integer targetPhase) {
+        Long employeeId = CurrentUserContext.getRequiredEmployeeId();
+        PhaseOwnerPreviewDTO result = projectService.getPhaseOwnerPreview(projectId, targetPhase, employeeId);
         return Response.Success(result, null);
     }
 

@@ -5,6 +5,7 @@ import com.xie.platform.access.pep.PolicyEnforcementPoint;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.access.resource.ResourceType;
 import com.xie.platform.dto.CreateProjectDTO;
+import com.xie.platform.dto.PhaseOwnerPreviewDTO;
 import com.xie.platform.dto.ProjectQueryDTO;
 import com.xie.platform.dto.UpdateProjectPhaseDTO;
 import com.xie.platform.exception.BizException;
@@ -147,6 +148,30 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
+    public PhaseOwnerPreviewDTO getPhaseOwnerPreview(Long projectId, Integer targetPhase, Long employeeId) {
+        if (projectId == null) {
+            throw new BizException("项目ID不能为空");
+        }
+        if (targetPhase == null) {
+            throw new BizException("目标阶段不能为空");
+        }
+
+        pep.checkProjectAccess(employeeId, projectId, Action.ADVANCE_PHASE);
+
+        Projects project = projectMapper.selectById(projectId);
+        if (project == null) {
+            throw new BizException("项目不存在");
+        }
+        if (project.getProjectPhase() == ProjectPhase.ARCHIVED) {
+            throw new BizException("已归档项目不能修改阶段");
+        }
+
+        ProjectPhase phase = parseProjectPhase(targetPhase);
+        validatePhaseTransition(project.getProjectPhase(), phase);
+        return buildPhaseOwnerPreview(phase);
+    }
+
+    @Override
     @Transactional
     public void updateProjectPhase(UpdateProjectPhaseDTO dto, Long employeeId) {
         if (dto.getProjectId() == null) {
@@ -154,9 +179,6 @@ public class ProjectServiceImpl implements ProjectService {
         }
         if (dto.getNewPhase() == null) {
             throw new BizException("新阶段不能为空");
-        }
-        if (dto.getNextOwnerId() == null) {
-            throw new BizException("目标阶段负责人不能为空");
         }
 
         pep.checkProjectAccess(employeeId, dto.getProjectId(), Action.ADVANCE_PHASE);
@@ -166,27 +188,23 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BizException("项目不存在");
         }
 
-        ProjectPhase newPhase;
-        try {
-            newPhase = ProjectPhase.fromCode(dto.getNewPhase());
-        } catch (IllegalArgumentException exception) {
-            throw new BizException("非法的项目阶段");
-        }
-
         if (project.getProjectPhase() == ProjectPhase.ARCHIVED) {
             throw new BizException("已归档项目不能修改阶段");
         }
 
+        ProjectPhase newPhase = parseProjectPhase(dto.getNewPhase());
         ProjectPhase currentPhase = project.getProjectPhase();
         Long currentOwnerId = project.getOwnerId();
         validatePhaseTransition(project.getProjectPhase(), newPhase);
-        validateStageOwner(newPhase, dto.getNextOwnerId());
-        projectMapper.updatePhase(dto.getProjectId(), newPhase.getCode(), dto.getNextOwnerId());
+        PhaseOwnerPreviewDTO preview = buildPhaseOwnerPreview(newPhase);
+        Long nextOwnerId = requireConfiguredPhaseOwner(preview);
+
+        projectMapper.updatePhase(dto.getProjectId(), newPhase.getCode(), nextOwnerId);
         projectMemberService.syncMembersForPhaseTransition(
                 dto.getProjectId(),
                 currentPhase,
                 newPhase,
-                dto.getNextOwnerId(),
+                nextOwnerId,
                 employeeId
         );
 
@@ -197,7 +215,12 @@ public class ProjectServiceImpl implements ProjectService {
         detail.put("fromPhase", currentPhase != null ? currentPhase.name() : null);
         detail.put("toPhase", newPhase.name());
         detail.put("oldOwnerId", currentOwnerId);
-        detail.put("newOwnerId", dto.getNextOwnerId());
+        detail.put("newOwnerId", nextOwnerId);
+        detail.put("newOwnerCode", preview.getEmployeeCode());
+        detail.put("newOwnerName", preview.getEmployeeName());
+        detail.put("responsibleDeptId", preview.getDeptId());
+        detail.put("responsibleDeptName", preview.getDeptName());
+        detail.put("responsibleDeptType", preview.getDeptType());
         auditLogService.recordBusinessEvent(
                 employeeId,
                 "PROJECT",
@@ -246,6 +269,69 @@ public class ProjectServiceImpl implements ProjectService {
                 .creatorId(project.getCreatedByEmployeeId())
                 .ownerId(project.getOwnerId())
                 .build();
+    }
+
+    private ProjectPhase parseProjectPhase(Integer projectPhaseCode) {
+        try {
+            return ProjectPhase.fromCode(projectPhaseCode);
+        } catch (IllegalArgumentException exception) {
+            throw new BizException("非法的项目阶段");
+        }
+    }
+
+    private Long requireConfiguredPhaseOwner(PhaseOwnerPreviewDTO preview) {
+        if (preview == null || !Boolean.TRUE.equals(preview.getConfigured()) || preview.getEmployeeId() == null) {
+            throw new BizException(preview != null && preview.getMessage() != null
+                    ? preview.getMessage()
+                    : "目标阶段负责人不可用");
+        }
+        return preview.getEmployeeId();
+    }
+
+    private PhaseOwnerPreviewDTO buildPhaseOwnerPreview(ProjectPhase targetPhase) {
+        PhaseOwnerPreviewDTO preview = new PhaseOwnerPreviewDTO();
+        preview.setTargetPhase(targetPhase.getCode());
+        preview.setTargetPhaseDesc(targetPhase.getDesc());
+        preview.setConfigured(false);
+
+        DeptType expectedDeptType = getStageOwnerDept(targetPhase);
+        preview.setDeptType(expectedDeptType.name());
+
+        Department department = departmentMapper.selectByDeptType(expectedDeptType);
+        if (department == null) {
+            preview.setMessage("目标阶段主责部门不存在：" + expectedDeptType.getDesc());
+            return preview;
+        }
+
+        preview.setDeptId(department.getDeptId());
+        preview.setDeptName(department.getDeptName());
+
+        Long managerId = department.getManagerId();
+        if (managerId == null) {
+            preview.setMessage("目标阶段主责部门尚未配置 manager_id：" + expectedDeptType.getDesc());
+            return preview;
+        }
+
+        Employees owner = employeesMapper.selectByEmployeeId(managerId);
+        if (owner == null) {
+            preview.setMessage("目标阶段负责人不存在");
+            return preview;
+        }
+        if (owner.getStatus() != EmployeeStatus.ACTIVE) {
+            preview.setMessage("目标阶段负责人状态不可用");
+            return preview;
+        }
+        if (!department.getDeptId().equals(owner.getDeptId())) {
+            preview.setMessage("目标阶段负责人不属于主责部门：" + expectedDeptType.getDesc());
+            return preview;
+        }
+
+        preview.setEmployeeId(owner.getEmployeeId());
+        preview.setEmployeeCode(owner.getEmployeeCode());
+        preview.setEmployeeName(owner.getEmployeeName());
+        preview.setConfigured(true);
+        preview.setMessage(null);
+        return preview;
     }
 
     private void validateStageOwner(ProjectPhase projectPhase, Long ownerId) {

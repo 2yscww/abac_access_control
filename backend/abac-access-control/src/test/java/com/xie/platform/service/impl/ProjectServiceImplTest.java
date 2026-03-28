@@ -3,6 +3,7 @@ package com.xie.platform.service.impl;
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.pep.PolicyEnforcementPoint;
 import com.xie.platform.dto.CreateProjectDTO;
+import com.xie.platform.dto.PhaseOwnerPreviewDTO;
 import com.xie.platform.dto.UpdateProjectPhaseDTO;
 import com.xie.platform.exception.BizException;
 import com.xie.platform.mapper.DepartmentMapper;
@@ -84,15 +85,16 @@ class ProjectServiceImplTest {
         UpdateProjectPhaseDTO dto = new UpdateProjectPhaseDTO();
         dto.setProjectId(11L);
         dto.setNewPhase(ProjectPhase.TEST.getCode());
-        dto.setNextOwnerId(12L);
 
         Projects project = new Projects();
         project.setProjectId(11L);
+        project.setProjectName("Alpha");
         project.setProjectPhase(ProjectPhase.DEVELOPMENT);
+        project.setOwnerId(9L);
 
         when(projectMapper.selectById(11L)).thenReturn(project);
         when(employeesMapper.selectByEmployeeId(12L)).thenReturn(buildEmployee(12L, 3L, EmployeeStatus.ACTIVE));
-        when(departmentMapper.selectById(3L)).thenReturn(buildDepartment(3L, DeptType.QA, 12L));
+        when(departmentMapper.selectByDeptType(DeptType.QA)).thenReturn(buildDepartment(3L, DeptType.QA, 12L));
 
         projectService.updateProjectPhase(dto, 7L);
 
@@ -113,7 +115,6 @@ class ProjectServiceImplTest {
         UpdateProjectPhaseDTO dto = new UpdateProjectPhaseDTO();
         dto.setProjectId(11L);
         dto.setNewPhase(ProjectPhase.RELEASE.getCode());
-        dto.setNextOwnerId(12L);
 
         Projects project = new Projects();
         project.setProjectId(11L);
@@ -137,7 +138,6 @@ class ProjectServiceImplTest {
         UpdateProjectPhaseDTO dto = new UpdateProjectPhaseDTO();
         dto.setProjectId(11L);
         dto.setNewPhase(ProjectPhase.REQUIREMENT.getCode());
-        dto.setNextOwnerId(13L);
 
         Projects project = new Projects();
         project.setProjectId(11L);
@@ -169,6 +169,25 @@ class ProjectServiceImplTest {
         verify(pep).checkProjectAccess(7L, 11L, Action.DELETE);
         verify(projectMemberService).deleteByProjectId(11L);
         verify(projectMapper).deleteById(11L);
+    }
+
+    @Test
+    void getPhaseOwnerPreview_shouldReturnConfiguredOwner() {
+        Projects project = new Projects();
+        project.setProjectId(11L);
+        project.setProjectPhase(ProjectPhase.DEVELOPMENT);
+
+        when(projectMapper.selectById(11L)).thenReturn(project);
+        when(departmentMapper.selectByDeptType(DeptType.QA)).thenReturn(buildDepartment(3L, DeptType.QA, 12L));
+        when(employeesMapper.selectByEmployeeId(12L)).thenReturn(buildEmployee(12L, 3L, EmployeeStatus.ACTIVE));
+
+        PhaseOwnerPreviewDTO result =
+                projectService.getPhaseOwnerPreview(11L, ProjectPhase.TEST.getCode(), 7L);
+
+        assertEquals(12L, result.getEmployeeId());
+        assertEquals("测试验证", result.getTargetPhaseDesc());
+        assertEquals(Boolean.TRUE, result.getConfigured());
+        verify(pep).checkProjectAccess(7L, 11L, Action.ADVANCE_PHASE);
     }
 
     private Employees buildEmployee(Long employeeId, Long deptId, EmployeeStatus status) {

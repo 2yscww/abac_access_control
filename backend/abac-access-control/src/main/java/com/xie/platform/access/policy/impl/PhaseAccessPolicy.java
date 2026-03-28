@@ -31,6 +31,10 @@ import java.util.Set;
 @Component
 public class PhaseAccessPolicy implements Policy {
 
+    private static boolean isReadLikeAction(Action action) {
+        return action == Action.READ || action == Action.EXPORT;
+    }
+
     @Override
     public String getName() {
         return "PhaseAccessPolicy";
@@ -61,7 +65,7 @@ public class PhaseAccessPolicy implements Policy {
             if (deptType != DeptType.MANAGEMENT) {
                 return PolicyResult.DENY;
             }
-            return action == Action.READ ? PolicyResult.ALLOW : PolicyResult.DENY;
+            return isReadLikeAction(action) ? PolicyResult.ALLOW : PolicyResult.DENY;
         }
 
         // ── 非归档阶段：先按矩阵检查完整操作权 ──────────────────────────────
@@ -72,7 +76,7 @@ public class PhaseAccessPolicy implements Policy {
 
         // ── 管理层兜底监管权 ─────────────────────────────────────────────────
         if (deptType == DeptType.MANAGEMENT) {
-            return action == Action.READ ? PolicyResult.ALLOW : PolicyResult.DENY;
+            return isReadLikeAction(action) ? PolicyResult.ALLOW : PolicyResult.DENY;
         }
 
         return PolicyResult.DENY;

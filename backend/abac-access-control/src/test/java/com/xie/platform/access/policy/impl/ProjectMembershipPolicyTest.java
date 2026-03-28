@@ -39,6 +39,22 @@ class ProjectMembershipPolicyTest {
     }
 
     @Test
+    void evaluate_shouldAllowManagementExportWithoutMembershipLookup() {
+        ProjectMemberService projectMemberService = mock(ProjectMemberService.class);
+        ProjectMembershipPolicy policy = new ProjectMembershipPolicy(projectMemberService);
+
+        PolicyResult result = policy.evaluate(
+                new Subject(1L, 10L, DeptType.MANAGEMENT, 1L, EmployeeLevel.VP, false),
+                buildProjectResource(),
+                Action.EXPORT,
+                buildEnvironment()
+        );
+
+        assertEquals(PolicyResult.ALLOW, result);
+        verifyNoInteractions(projectMemberService);
+    }
+
+    @Test
     void evaluate_shouldDenyReadWhenOperatorIsNotActiveMember() {
         ProjectMemberService projectMemberService = mock(ProjectMemberService.class);
         when(projectMemberService.isActiveMember(11L, 1L)).thenReturn(false);

@@ -35,6 +35,11 @@ public class ProjectMembershipPolicy implements Policy {
         return 10;
     }
 
+    private boolean isManagementReadLikeAccess(Subject subject, Action action) {
+        return subject.getDeptType() == DeptType.MANAGEMENT
+                && (action == Action.READ || action == Action.EXPORT);
+    }
+
     @Override
     public PolicyResult evaluate(Subject subject, Resource resource, Action action, Environment environment) {
         if (resource.getProjectId() == null) {
@@ -46,7 +51,7 @@ public class ProjectMembershipPolicy implements Policy {
         if (subject.getEmployeeId() == null) {
             return PolicyResult.DENY;
         }
-        if (action == Action.READ && subject.getDeptType() == DeptType.MANAGEMENT) {
+        if (isManagementReadLikeAccess(subject, action)) {
             return PolicyResult.ALLOW;
         }
 
