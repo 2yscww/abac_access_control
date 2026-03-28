@@ -78,7 +78,7 @@ public class AuditLogServiceImpl implements AuditLogService {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void recordBusinessEvent(
             Long employeeId,
             String resourceType,
@@ -95,6 +95,8 @@ public class AuditLogServiceImpl implements AuditLogService {
             throw new BizException("业务审计缺少动作类型");
         }
 
+        // Join the surrounding business transaction so project phase updates do not
+        // deadlock with a nested REQUIRES_NEW audit insert on the same project row.
         AuditLog auditLog = buildEventAuditLog(
                 employeeId,
                 resourceType,
