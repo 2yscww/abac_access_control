@@ -188,7 +188,7 @@ async function handleOffboard(employee) {
 
   try {
     await ElMessageBox.confirm(
-      `确认将 ${employee.employeeName}（${employee.employeeCode}）办理离职？`,
+      `确认将 ${employee.employeeName}（${employee.employeeCode}）办理离职吗？`,
       '离职确认',
       {
         type: 'warning',
@@ -286,223 +286,223 @@ onMounted(() => {
 
 <template>
   <div class="handover-page">
-      <section class="handover-hero">
-        <div>
-          <p class="handover-hero__eyebrow">Strict Mode Handover</p>
-          <h2 class="handover-hero__title">负责人离职与接任工作台</h2>
-          <p class="handover-hero__copy">
-            HR 只负责发起离职，管理层只负责指定接任人。系统会把部门 `manager_id`
-            变化自动同步到当前项目负责人镜像，确保严格模式规则持续成立。
-          </p>
-        </div>
-        <el-button plain @click="refreshWorkbench" :loading="refreshLoading">刷新数据</el-button>
-      </section>
+    <section class="handover-hero">
+      <div>
+        <p class="handover-hero__eyebrow">严格模式交接</p>
+        <h2 class="handover-hero__title">负责人离职与接任工作台</h2>
+        <p class="handover-hero__copy">
+          HR 只负责发起离职，管理层只负责指定接任人。系统会把部门 `manager_id` 的变化自动同步到当前项目负责人镜像，
+          确保严格模式下的阶段推进规则持续成立。
+        </p>
+      </div>
+      <el-button plain @click="refreshWorkbench" :loading="refreshLoading">刷新数据</el-button>
+    </section>
 
-      <section v-if="canAssign" class="handover-summary">
-        <el-card shadow="never" class="summary-card">
-          <p class="summary-card__label">待改派部门</p>
-          <strong>{{ todos.length }}</strong>
-          <span>当前 manager 指向离职员工的部门数量。</span>
-        </el-card>
-        <el-card shadow="never" class="summary-card">
-          <p class="summary-card__label">受影响项目</p>
-          <strong>{{ totalAffectedProjects }}</strong>
-          <span>严格模式下暂时无法继续推进阶段的项目数。</span>
-        </el-card>
-        <el-card shadow="never" class="summary-card">
-          <p class="summary-card__label">最高风险部门</p>
-          <strong>{{ highestImpactTodo?.deptName || '暂无' }}</strong>
-          <span>
-            {{
-              highestImpactTodo
-                ? `受影响项目 ${highestImpactTodo.affectedProjectCount} 个`
-                : '当前没有待处理交接'
-            }}
-          </span>
-        </el-card>
-      </section>
+    <section v-if="canAssign" class="handover-summary">
+      <el-card shadow="never" class="summary-card">
+        <p class="summary-card__label">待改派部门</p>
+        <strong>{{ todos.length }}</strong>
+        <span>当前 `manager_id` 仍指向离职员工的部门数量。</span>
+      </el-card>
+      <el-card shadow="never" class="summary-card">
+        <p class="summary-card__label">受影响项目</p>
+        <strong>{{ totalAffectedProjects }}</strong>
+        <span>严格模式下暂时无法继续推进阶段的项目数量。</span>
+      </el-card>
+      <el-card shadow="never" class="summary-card">
+        <p class="summary-card__label">最高风险部门</p>
+        <strong>{{ highestImpactTodo?.deptName || '暂无' }}</strong>
+        <span>
+          {{
+            highestImpactTodo
+              ? `受影响项目 ${highestImpactTodo.affectedProjectCount} 个`
+              : '当前没有待处理交接'
+          }}
+        </span>
+      </el-card>
+    </section>
 
-      <section class="handover-grid">
-        <el-card v-if="canAssign" shadow="never" class="chart-card">
-          <template #header>
-            <div class="card-header">
-              <div>
-                <h3>待改派热度图</h3>
-                <p>按部门查看受影响项目数，优先处理堆积最高的责任链条。</p>
-              </div>
-              <el-tag type="warning" effect="light" round>Bar</el-tag>
-            </div>
-          </template>
-
-          <InsightChart :option="chartOption" height="340px" />
-        </el-card>
-
-        <el-card v-if="canOffboard" shadow="never" class="panel-card">
-          <template #header>
-            <div class="card-header">
-              <div>
-                <h3>HR 离职办理</h3>
-                <p>检索在职员工并发起离职。系统会自动把负责人缺口暴露到待改派列表。</p>
-              </div>
-            </div>
-          </template>
-
-          <div class="toolbar-row">
-            <el-input
-              v-model="employeeQuery.keyword"
-              clearable
-              placeholder="按工号或姓名搜索在职员工"
-              @keyup.enter="searchEmployees"
-            />
-            <el-button type="primary" :loading="employeeLoading" @click="searchEmployees">
-              查询在职员工
-            </el-button>
-          </div>
-
-          <el-alert
-            v-if="employeeError"
-            :title="employeeError"
-            type="warning"
-            show-icon
-            :closable="false"
-            class="block-alert"
-          />
-
-          <el-empty
-            v-else-if="employeeQueried && employees.length === 0"
-            description="没有检索到可办理离职的在职员工"
-          />
-
-          <el-table v-else-if="employees.length > 0" :data="employees" stripe height="380">
-            <el-table-column prop="employeeCode" label="工号" min-width="110" />
-            <el-table-column prop="employeeName" label="姓名" min-width="120" />
-            <el-table-column prop="deptId" label="部门 ID" min-width="96" />
-            <el-table-column label="操作" width="140" fixed="right">
-              <template #default="{ row }">
-                <el-button link type="danger" @click="handleOffboard(row)">办理离职</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <el-empty v-else description="HR 可在这里检索在职员工后发起离职。" />
-        </el-card>
-      </section>
-
-      <el-card v-if="canAssign" shadow="never" class="panel-card">
+    <section class="handover-grid">
+      <el-card v-if="canAssign" shadow="never" class="chart-card">
         <template #header>
           <div class="card-header">
             <div>
-              <h3>管理层待改派列表</h3>
-              <p>根据离职经理动态生成待办，无需单独任务表。</p>
+              <h3>待改派热度图</h3>
+              <p>按部门查看受影响项目数，优先处理堆积最高的责任链条。</p>
+            </div>
+            <el-tag type="warning" effect="light" round>柱状图</el-tag>
+          </div>
+        </template>
+
+        <InsightChart :option="chartOption" height="340px" />
+      </el-card>
+
+      <el-card v-if="canOffboard" shadow="never" class="panel-card">
+        <template #header>
+          <div class="card-header">
+            <div>
+              <h3>HR 离职办理</h3>
+              <p>检索在职员工并发起离职，系统会自动把负责人缺口暴露到待改派列表中。</p>
             </div>
           </div>
         </template>
 
+        <div class="toolbar-row">
+          <el-input
+            v-model="employeeQuery.keyword"
+            clearable
+            placeholder="按工号或姓名搜索在职员工"
+            @keyup.enter="searchEmployees"
+          />
+          <el-button type="primary" :loading="employeeLoading" @click="searchEmployees">
+            查询在职员工
+          </el-button>
+        </div>
+
         <el-alert
-          v-if="todoError"
-          :title="todoError"
+          v-if="employeeError"
+          :title="employeeError"
           type="warning"
           show-icon
           :closable="false"
           class="block-alert"
         />
 
-        <el-skeleton v-else-if="todoLoading" :rows="6" animated />
+        <el-empty
+          v-else-if="employeeQueried && employees.length === 0"
+          description="没有检索到可办理离职的在职员工"
+        />
 
-        <el-empty v-else-if="todos.length === 0" description="当前没有负责人待改派部门" />
-
-        <el-table v-else :data="orderedTodos" stripe>
-          <el-table-column prop="deptName" label="部门" min-width="140" />
-          <el-table-column prop="deptType" label="部门类型" min-width="110" />
-          <el-table-column label="离职经理" min-width="180">
+        <el-table v-else-if="employees.length > 0" :data="employees" stripe height="380">
+          <el-table-column prop="employeeCode" label="工号" min-width="110" />
+          <el-table-column prop="employeeName" label="姓名" min-width="120" />
+          <el-table-column prop="deptId" label="部门 ID" min-width="96" />
+          <el-table-column label="操作" width="140" fixed="right">
             <template #default="{ row }">
-              {{ row.managerName || '-' }}（{{ row.managerCode || row.managerId || '-' }}）
-            </template>
-          </el-table-column>
-          <el-table-column label="受影响项目" min-width="190">
-            <template #default="{ row }">
-              <el-space wrap>
-                <el-tag type="danger" effect="light">{{ row.affectedProjectCount || 0 }} 个项目</el-tag>
-                <el-popover
-                  v-if="row.affectedProjects?.length"
-                  placement="top"
-                  width="360"
-                  trigger="click"
-                >
-                  <template #reference>
-                    <el-button link type="primary">查看明细</el-button>
-                  </template>
-
-                  <div class="project-popover">
-                    <div
-                      v-for="project in row.affectedProjects"
-                      :key="project.projectId"
-                      class="project-popover__item"
-                    >
-                      <strong>{{ project.projectName }}</strong>
-                      <span>
-                        {{ getOptionLabel(projectPhaseOptions, project.projectPhase) }}
-                        / 当前 owner {{ project.ownerId || '-' }}
-                      </span>
-                    </div>
-                  </div>
-                </el-popover>
-              </el-space>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="160" fixed="right">
-            <template #default="{ row }">
-              <el-button type="primary" link @click="openAssignDialog(row)">指定新负责人</el-button>
+              <el-button link type="danger" @click="handleOffboard(row)">办理离职</el-button>
             </template>
           </el-table-column>
         </el-table>
+
+        <el-empty v-else description="HR 可以在这里检索在职员工并发起离职" />
       </el-card>
+    </section>
 
-      <el-dialog
-        v-model="assignDialogVisible"
-        width="560px"
-        destroy-on-close
-        title="指定新的部门负责人"
-      >
-        <template v-if="currentTodo">
-          <div class="assign-dialog__meta">
-            <el-tag type="warning" effect="light">{{ currentTodo.deptName }}</el-tag>
-            <span>原负责人：{{ currentTodo.managerName || '-' }}</span>
-            <span>受影响项目：{{ currentTodo.affectedProjectCount || 0 }}</span>
+    <el-card v-if="canAssign" shadow="never" class="panel-card">
+      <template #header>
+        <div class="card-header">
+          <div>
+            <h3>管理层待改派列表</h3>
+            <p>系统根据离职结果动态生成待办，无需额外维护独立任务表。</p>
           </div>
+        </div>
+      </template>
 
-          <el-form label-position="top">
-            <el-form-item label="选择同部门在职员工">
-              <el-select
-                v-model="assignForm.newManagerEmployeeId"
-                filterable
-                placeholder="请选择接任负责人"
-                style="width: 100%"
-                :loading="candidatesLoading"
+      <el-alert
+        v-if="todoError"
+        :title="todoError"
+        type="warning"
+        show-icon
+        :closable="false"
+        class="block-alert"
+      />
+
+      <el-skeleton v-else-if="todoLoading" :rows="6" animated />
+
+      <el-empty v-else-if="todos.length === 0" description="当前没有负责人待改派部门" />
+
+      <el-table v-else :data="orderedTodos" stripe>
+        <el-table-column prop="deptName" label="部门" min-width="140" />
+        <el-table-column prop="deptType" label="部门类型" min-width="110" />
+        <el-table-column label="离职负责人" min-width="180">
+          <template #default="{ row }">
+            {{ row.managerName || '-' }}（{{ row.managerCode || row.managerId || '-' }}）
+          </template>
+        </el-table-column>
+        <el-table-column label="受影响项目" min-width="190">
+          <template #default="{ row }">
+            <el-space wrap>
+              <el-tag type="danger" effect="light">{{ row.affectedProjectCount || 0 }} 个项目</el-tag>
+              <el-popover
+                v-if="row.affectedProjects?.length"
+                placement="top"
+                width="360"
+                trigger="click"
               >
-                <el-option
-                  v-for="candidate in candidates"
-                  :key="candidate.employeeId"
-                  :label="buildCandidateLabel(candidate)"
-                  :value="candidate.employeeId"
-                />
-              </el-select>
-            </el-form-item>
-          </el-form>
+                <template #reference>
+                  <el-button link type="primary">查看明细</el-button>
+                </template>
 
-          <el-empty
-            v-if="!candidatesLoading && candidates.length === 0"
-            description="当前部门没有可接任的在职员工"
-          />
-        </template>
+                <div class="project-popover">
+                  <div
+                    v-for="project in row.affectedProjects"
+                    :key="project.projectId"
+                    class="project-popover__item"
+                  >
+                    <strong>{{ project.projectName }}</strong>
+                    <span>
+                      {{ getOptionLabel(projectPhaseOptions, project.projectPhase) }}
+                      / 当前负责人 {{ project.ownerId || '-' }}
+                    </span>
+                  </div>
+                </div>
+              </el-popover>
+            </el-space>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="160" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="openAssignDialog(row)">指定新负责人</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
-        <template #footer>
-          <el-button @click="assignDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="assignSubmitting" @click="submitAssignment">
-            确认改派
-          </el-button>
-        </template>
-      </el-dialog>
+    <el-dialog
+      v-model="assignDialogVisible"
+      width="560px"
+      destroy-on-close
+      title="指定新的部门负责人"
+    >
+      <template v-if="currentTodo">
+        <div class="assign-dialog__meta">
+          <el-tag type="warning" effect="light">{{ currentTodo.deptName }}</el-tag>
+          <span>原负责人：{{ currentTodo.managerName || '-' }}</span>
+          <span>受影响项目：{{ currentTodo.affectedProjectCount || 0 }}</span>
+        </div>
+
+        <el-form label-position="top">
+          <el-form-item label="选择同部门在职员工">
+            <el-select
+              v-model="assignForm.newManagerEmployeeId"
+              filterable
+              placeholder="请选择接任负责人"
+              style="width: 100%"
+              :loading="candidatesLoading"
+            >
+              <el-option
+                v-for="candidate in candidates"
+                :key="candidate.employeeId"
+                :label="buildCandidateLabel(candidate)"
+                :value="candidate.employeeId"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+
+        <el-empty
+          v-if="!candidatesLoading && candidates.length === 0"
+          description="当前部门没有可接任的在职员工"
+        />
+      </template>
+
+      <template #footer>
+        <el-button @click="assignDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="assignSubmitting" @click="submitAssignment">
+          确认改派
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

@@ -8,6 +8,12 @@ export function getProject(projectId) {
   return apiRequest(`/api/project/${projectId}`)
 }
 
+export function getPhaseOwnerPreview(projectId, targetPhase) {
+  return apiRequest(`/api/project/${projectId}/phase-owner-preview`, {
+    query: { targetPhase },
+  })
+}
+
 export function listProjectMembers(projectId) {
   return apiRequest(`/api/project/${projectId}/members`)
 }

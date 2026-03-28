@@ -219,7 +219,7 @@ async function handleDownload(asset) {
     const downloadUrl = result.downloadUrl || result.filePath
 
     if (!downloadUrl) {
-      throw new Error('后端未返回可用下载地址')
+      throw new Error('后端没有返回可用的下载地址')
     }
 
     window.open(downloadUrl, '_blank', 'noopener')
@@ -238,11 +238,11 @@ onMounted(loadFileCenterData)
   <div class="files-page">
     <section class="files-hero">
       <div>
-        <p class="files-hero__eyebrow">File Center</p>
+        <p class="files-hero__eyebrow">文件中心</p>
         <h2 class="files-hero__title">MinIO 文件中心</h2>
         <p class="files-hero__description">
-          文件内容现在走对象存储，MySQL 继续只保存资产业务数据与存储引用。上传会写入
-          MinIO，下载则通过后端受控导出临时链接，继续沿用现有 ABAC 与审计边界。
+          文件内容现在存储在对象存储中，MySQL 继续保存资产业务数据与存储引用。上传会写入
+          MinIO，下载则通过后端受控导出临时链接，继续复用现有 ABAC 与审计边界。
         </p>
       </div>
       <el-alert
@@ -256,19 +256,19 @@ onMounted(loadFileCenterData)
     <section class="files-summary">
       <el-card shadow="never" class="summary-card">
         <el-statistic title="我的最近上传" :value="draftCount" />
-        <p>当前账号最近创建的资产记录。</p>
+        <p>当前账号最近创建的资产记录数量。</p>
       </el-card>
       <el-card shadow="never" class="summary-card">
         <el-statistic title="可下载资产" :value="downloadCount" />
-        <p>当前账号可见且可发起导出下载的资产。</p>
+        <p>当前账号可见且可发起导出下载的资产数量。</p>
       </el-card>
       <el-card shadow="never" class="summary-card">
         <strong>{{ uploadCapabilityLabel }}</strong>
-        <p>上传能力：{{ authStore.hasCapability('files.upload') ? '可见' : '受限' }}</p>
+        <p>上传能力：{{ authStore.hasCapability('files.upload') ? '可用' : '受限' }}</p>
       </el-card>
       <el-card shadow="never" class="summary-card">
         <strong>{{ downloadCapabilityLabel }}</strong>
-        <p>下载能力：{{ authStore.hasCapability('files.download') ? '可见' : '受限' }}</p>
+        <p>下载能力：{{ authStore.hasCapability('files.download') ? '可用' : '受限' }}</p>
       </el-card>
     </section>
 
@@ -278,7 +278,7 @@ onMounted(loadFileCenterData)
           <div class="panel-card__header">
             <div>
               <h3>上传文件</h3>
-              <p>填写业务元数据并选择本地文件，后端会上传到 MinIO 后再写入资产表。</p>
+              <p>填写业务元数据并选择本地文件，后端会先上传到 MinIO，再写入资产记录。</p>
             </div>
           </div>
         </template>
@@ -324,7 +324,7 @@ onMounted(loadFileCenterData)
             <div class="files-page__picker">
               <input ref="fileInputRef" type="file" class="files-page__input" @change="handleFileChange" />
               <el-tag v-if="selectedFileName" effect="plain">
-                {{ selectedFileName }}<span v-if="selectedFileSize"> · {{ selectedFileSize }}</span>
+                {{ selectedFileName }}<span v-if="selectedFileSize"> / {{ selectedFileSize }}</span>
               </el-tag>
               <span v-else class="files-page__placeholder">尚未选择本地文件</span>
             </div>
@@ -352,7 +352,7 @@ onMounted(loadFileCenterData)
           <div class="panel-card__header">
             <div>
               <h3>接入概览</h3>
-              <p>文件中心的真实上传、可见资产和当前能力分布。</p>
+              <p>展示文件中心的真实上传、可见资产和当前能力状态。</p>
             </div>
           </div>
         </template>
@@ -366,7 +366,7 @@ onMounted(loadFileCenterData)
           <div class="panel-card__header">
             <div>
               <h3>我的最近上传</h3>
-              <p>展示当前账号最近创建的资产元数据，文件引用仍默认隐藏。</p>
+              <p>展示当前账号最近创建的资产元数据，文件引用默认仍保持隐藏。</p>
             </div>
             <el-button plain :loading="loading" @click="loadFileCenterData">刷新</el-button>
           </div>

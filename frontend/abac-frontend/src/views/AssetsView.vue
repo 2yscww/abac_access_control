@@ -137,164 +137,164 @@ onMounted(loadAssets)
 
 <template>
   <div class="assets-page">
-      <section class="assets-hero">
-        <div>
-          <p class="assets-hero__eyebrow">Assets Center</p>
-          <h2 class="assets-hero__title">资产检索与生命周期视图</h2>
-          <p class="assets-hero__description">
-            用统一的查询面板查看当前账号可见的资产元数据，关注资产类型、产生阶段和密级在不同项目中的分布情况。
-          </p>
-        </div>
-        <el-button plain :loading="loading" @click="loadAssets">刷新资产</el-button>
-      </section>
+    <section class="assets-hero">
+      <div>
+        <p class="assets-hero__eyebrow">资产中心</p>
+        <h2 class="assets-hero__title">资产检索与生命周期视图</h2>
+        <p class="assets-hero__description">
+          使用统一查询面板查看当前账号可见的资产元数据，关注资产类型、产生阶段和安全密级在不同项目中的分布情况。
+        </p>
+      </div>
+      <el-button plain :loading="loading" @click="loadAssets">刷新资产</el-button>
+    </section>
 
-      <section class="assets-summary">
-        <el-card shadow="never" class="summary-card">
-          <el-statistic title="当前页资产数" :value="visibleCount" />
-          <p>当前分页内可读取到的资产元数据。</p>
-        </el-card>
-        <el-card shadow="never" class="summary-card">
-          <el-statistic title="总结果数" :value="total" />
-          <p>查询条件下的总资产量。</p>
-        </el-card>
-        <el-card shadow="never" class="summary-card">
-          <el-statistic title="覆盖项目数" :value="distinctProjectCount" />
-          <p>当前页资产分布到的项目数量。</p>
-        </el-card>
-        <el-card shadow="never" class="summary-card">
-          <el-statistic title="高密资产" :value="sensitiveCount" />
-          <p>机密和绝密资产仍然遵循更严格的读取边界。</p>
-        </el-card>
-      </section>
+    <section class="assets-summary">
+      <el-card shadow="never" class="summary-card">
+        <el-statistic title="当前页资产数" :value="visibleCount" />
+        <p>当前分页内可读取到的资产元数据数量。</p>
+      </el-card>
+      <el-card shadow="never" class="summary-card">
+        <el-statistic title="命中总数" :value="total" />
+        <p>当前查询条件下命中的总资产数量。</p>
+      </el-card>
+      <el-card shadow="never" class="summary-card">
+        <el-statistic title="覆盖项目数" :value="distinctProjectCount" />
+        <p>当前页资产分布到的项目数量。</p>
+      </el-card>
+      <el-card shadow="never" class="summary-card">
+        <el-statistic title="高密资产" :value="sensitiveCount" />
+        <p>机密与绝密资产仍受到更严格的访问边界限制。</p>
+      </el-card>
+    </section>
 
-      <section class="assets-grid">
-        <el-card shadow="never" class="panel-card">
-          <template #header>
-            <div class="panel-card__header">
-              <div>
-                <h3>查询条件</h3>
-                <p>组合项目、名称、类型、阶段和密级，定位目标资产。</p>
-              </div>
-            </div>
-          </template>
-
-          <el-form label-position="top" class="query-form">
-            <el-form-item label="项目 ID">
-              <el-input v-model="filters.projectId" clearable placeholder="请输入项目 ID" />
-            </el-form-item>
-            <el-form-item label="资产名称">
-              <el-input v-model="filters.assetName" clearable placeholder="支持模糊搜索" />
-            </el-form-item>
-            <el-form-item label="资产类型">
-              <el-select v-model="filters.assetsType" clearable placeholder="全部类型">
-                <el-option
-                  v-for="item in assetTypeOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="产生阶段">
-              <el-select v-model="filters.assetsStage" clearable placeholder="全部阶段">
-                <el-option
-                  v-for="item in projectPhaseOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="资产密级">
-              <el-select v-model="filters.securityLevel" clearable placeholder="全部密级">
-                <el-option
-                  v-for="item in securityLevelOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                />
-              </el-select>
-            </el-form-item>
-          </el-form>
-
-          <div class="query-actions">
-            <el-button type="primary" @click="filters.pageNum = 1; loadAssets()">查询</el-button>
-            <el-button plain @click="resetFilters">重置</el-button>
-          </div>
-        </el-card>
-
-        <el-card shadow="never" class="panel-card">
-          <template #header>
-            <div class="panel-card__header">
-              <div>
-                <h3>当前页类型分布</h3>
-                <p>快速判断当前检索结果偏向文档、代码还是部署运维资料。</p>
-              </div>
-              <el-tag type="warning" effect="light" round>Bar</el-tag>
-            </div>
-          </template>
-          <InsightChart :option="chartOption" height="320px" />
-        </el-card>
-      </section>
-
-      <el-card shadow="never" class="table-card">
+    <section class="assets-grid">
+      <el-card shadow="never" class="panel-card">
         <template #header>
           <div class="panel-card__header">
             <div>
-              <h3>资产结果</h3>
-              <p>列表只展示当前账号可见的资产元数据，点击可回到所属项目继续处理。</p>
+              <h3>查询条件</h3>
+              <p>组合项目、名称、类型、阶段和密级，定位目标资产。</p>
             </div>
-            <el-tag type="info" effect="light">共 {{ total }} 条</el-tag>
           </div>
         </template>
 
-        <el-table v-loading="loading" :data="assets" stripe>
-          <el-table-column prop="assetName" label="资产名称" min-width="180" />
-          <el-table-column prop="projectId" label="项目 ID" min-width="100" />
-          <el-table-column label="资产类型" min-width="130">
-            <template #default="{ row }">
-              {{ getOptionLabel(assetTypeOptions, row.assetsType) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="产生阶段" min-width="120">
-            <template #default="{ row }">
-              {{ getOptionLabel(projectPhaseOptions, row.assetsStage) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="资产密级" min-width="120">
-            <template #default="{ row }">
-              <el-tag effect="light">
-                {{ getOptionLabel(securityLevelOptions, row.securityLevel) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="createdByEmployeeId" label="创建人" min-width="100" />
-          <el-table-column label="操作" width="140" fixed="right">
-            <template #default="{ row }">
-              <el-button
-                type="primary"
-                link
-                @click="router.push({ name: 'project-detail', params: { id: row.projectId } })"
-              >
-                查看项目
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <el-form label-position="top" class="query-form">
+          <el-form-item label="项目 ID">
+            <el-input v-model="filters.projectId" clearable placeholder="请输入项目 ID" />
+          </el-form-item>
+          <el-form-item label="资产名称">
+            <el-input v-model="filters.assetName" clearable placeholder="支持模糊搜索" />
+          </el-form-item>
+          <el-form-item label="资产类型">
+            <el-select v-model="filters.assetsType" clearable placeholder="全部类型">
+              <el-option
+                v-for="item in assetTypeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="产生阶段">
+            <el-select v-model="filters.assetsStage" clearable placeholder="全部阶段">
+              <el-option
+                v-for="item in projectPhaseOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="资产密级">
+            <el-select v-model="filters.securityLevel" clearable placeholder="全部密级">
+              <el-option
+                v-for="item in securityLevelOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
 
-        <el-empty v-if="!loading && assets.length === 0" description="当前条件下没有可访问资产" />
-
-        <div class="table-card__footer">
-          <el-pagination
-            background
-            layout="prev, pager, next, total"
-            :current-page="filters.pageNum"
-            :page-size="filters.pageSize"
-            :total="total"
-            @current-change="handlePageChange"
-          />
+        <div class="query-actions">
+          <el-button type="primary" @click="filters.pageNum = 1; loadAssets()">查询</el-button>
+          <el-button plain @click="resetFilters">重置</el-button>
         </div>
       </el-card>
+
+      <el-card shadow="never" class="panel-card">
+        <template #header>
+          <div class="panel-card__header">
+            <div>
+              <h3>当前页类型分布</h3>
+              <p>快速判断当前结果更偏向文档、代码、测试还是部署运维资料。</p>
+            </div>
+            <el-tag type="warning" effect="light" round>柱状图</el-tag>
+          </div>
+        </template>
+        <InsightChart :option="chartOption" height="320px" />
+      </el-card>
+    </section>
+
+    <el-card shadow="never" class="table-card">
+      <template #header>
+        <div class="panel-card__header">
+          <div>
+            <h3>资产结果</h3>
+            <p>列表只展示当前账号可见的资产元数据，点击后可回到所属项目继续操作。</p>
+          </div>
+          <el-tag type="info" effect="light">共 {{ total }} 条</el-tag>
+        </div>
+      </template>
+
+      <el-table v-loading="loading" :data="assets" stripe>
+        <el-table-column prop="assetName" label="资产名称" min-width="180" />
+        <el-table-column prop="projectId" label="项目 ID" min-width="100" />
+        <el-table-column label="资产类型" min-width="130">
+          <template #default="{ row }">
+            {{ getOptionLabel(assetTypeOptions, row.assetsType) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="产生阶段" min-width="120">
+          <template #default="{ row }">
+            {{ getOptionLabel(projectPhaseOptions, row.assetsStage) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="资产密级" min-width="120">
+          <template #default="{ row }">
+            <el-tag effect="light">
+              {{ getOptionLabel(securityLevelOptions, row.securityLevel) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdByEmployeeId" label="创建人" min-width="100" />
+        <el-table-column label="操作" width="140" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              type="primary"
+              link
+              @click="router.push({ name: 'project-detail', params: { id: row.projectId } })"
+            >
+              查看项目
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-empty v-if="!loading && assets.length === 0" description="当前条件下没有可访问资产" />
+
+      <div class="table-card__footer">
+        <el-pagination
+          background
+          layout="prev, pager, next, total"
+          :current-page="filters.pageNum"
+          :page-size="filters.pageSize"
+          :total="total"
+          @current-change="handlePageChange"
+        />
+      </div>
+    </el-card>
   </div>
 </template>
 

@@ -44,7 +44,7 @@ export const useAuthStore = defineStore('auth', () => {
       return `${profile.value.employeeName} (${profile.value.employeeCode || employeeId.value || '-'})`
     }
 
-    return employeeId.value ? `Employee ${employeeId.value}` : 'Guest'
+    return employeeId.value ? `员工 ${employeeId.value}` : '访客'
   })
 
   function setSession(payload) {

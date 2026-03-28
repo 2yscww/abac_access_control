@@ -22,9 +22,8 @@ const router = createRouter({
           meta: {
             requiresAuth: true,
             requiredMenu: 'projects',
-            title: 'Project Overview',
-            description:
-              'Review visible projects, phase distribution, and ABAC-filtered create/delete entry points.',
+            title: '项目总览',
+            description: '查看当前账号可见项目、阶段分布，以及受 ABAC 约束的新增与删除入口。',
           },
         },
         {
@@ -34,9 +33,8 @@ const router = createRouter({
           meta: {
             requiresAuth: true,
             requiredMenu: 'projects',
-            title: 'Project Detail',
-            description:
-              'Inspect project attributes, members, assets, and phase handover in one workflow.',
+            title: '项目详情',
+            description: '在一个流程中查看项目属性、成员隔离、资产管理与阶段交接。',
           },
         },
         {
@@ -46,8 +44,8 @@ const router = createRouter({
           meta: {
             requiresAuth: true,
             requiredMenu: 'assets',
-            title: 'Asset Center',
-            description: 'Query assets by project, stage, type, and security level.',
+            title: '资产中心',
+            description: '按项目、阶段、类型和密级查询当前账号可见的资产。',
           },
         },
         {
@@ -57,8 +55,8 @@ const router = createRouter({
           meta: {
             requiresAuth: true,
             requiredMenu: 'files',
-            title: 'File Center',
-            description: 'Prototype page for file upload, download, and circulation entry points.',
+            title: '文件中心',
+            description: '演示 MinIO 文件上传、受控下载与资产建档入口。',
           },
         },
         {
@@ -69,8 +67,8 @@ const router = createRouter({
             requiresAuth: true,
             requiredMenu: 'handover',
             requiredCapability: 'handover.view',
-            title: 'Handover Workbench',
-            description: 'Handle offboarding, manager reassignment, and pending handover items.',
+            title: '交接工作台',
+            description: '处理员工离职、部门负责人改派，以及严格模式下的待交接事项。',
           },
         },
         {
@@ -81,8 +79,8 @@ const router = createRouter({
             requiresAuth: true,
             requiredMenu: 'audit',
             requiredCapability: 'audit.view',
-            title: 'Audit Logs',
-            description: 'Review authorization decisions and business handover events.',
+            title: '审计日志',
+            description: '查看授权决策记录与业务交接事件，展示系统的可追溯性。',
           },
         },
         {
@@ -93,9 +91,8 @@ const router = createRouter({
             requiresAuth: true,
             requiredMenu: 'policy',
             requiredCapability: 'policy.manage',
-            title: 'Policy Config',
-            description:
-              'Adjust runtime thresholds while keeping ABAC policy logic fixed in code.',
+            title: '策略配置',
+            description: '在不修改 ABAC 核心逻辑的前提下，调整运行期阈值与开关。',
           },
         },
       ],

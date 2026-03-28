@@ -79,14 +79,12 @@ const chartOption = computed(() => ({
   ],
 }))
 
-const modeTitle = computed(() =>
-  mode.value === 'login' ? '员工登录' : '首次登录修改密码',
-)
+const modeTitle = computed(() => (mode.value === 'login' ? '员工登录' : '首次登录修改密码'))
 
 const modeDescription = computed(() =>
   mode.value === 'login'
-    ? '请输入员工工号和密码。'
-    : '首次登录需完成密码修改后才可进入系统。',
+    ? '请输入员工工号和登录密码。'
+    : '首次登录必须先修改初始密码，完成后才能进入系统。',
 )
 
 async function submitLogin() {
@@ -99,7 +97,7 @@ async function submitLogin() {
     if (data.mustChangePassword) {
       authStore.setTempSession(data)
       mode.value = 'change-password'
-      successMessage.value = '首次登录需要先修改密码。'
+      successMessage.value = '检测到首次登录，请先完成密码修改。'
       passwordForm.oldPassword = loginForm.password
       return
     }
@@ -136,10 +134,11 @@ async function submitPasswordChange() {
     <div class="login-page__inner">
       <el-card shadow="never" class="login-page__overview">
         <div class="login-page__heading">
-          <p class="login-page__eyebrow">ABAC Platform</p>
-          <h1>权限治理与安全审计系统</h1>
+          <p class="login-page__eyebrow">ABAC 权限平台</p>
+          <h1>ABAC 权限控制与安全审计系统</h1>
           <p>
-            系统围绕员工身份、项目阶段、资源密级和审计记录组织权限控制，前端界面采用传统后台布局展示关键数据。
+            系统围绕员工身份、项目阶段、资产密级、环境约束和审计记录组织访问控制逻辑，适合用于展示
+            ABAC 在业务流程中的落地方式。
           </p>
         </div>
 
@@ -160,15 +159,15 @@ async function submitPasswordChange() {
         </el-card>
 
         <ul class="login-page__list">
-          <li>项目页展示阶段分布、列表查询和项目创建。</li>
-          <li>资产页展示可见资产、类型分布和按条件过滤。</li>
-          <li>审计页展示授权决策与业务交接记录。</li>
+          <li>项目页展示阶段分布、列表查询与项目创建入口。</li>
+          <li>资产页展示可见资产、类型分布与按条件过滤能力。</li>
+          <li>审计页展示授权决策与交接业务的全过程留痕。</li>
         </ul>
       </el-card>
 
       <el-card shadow="never" class="login-card">
         <div class="login-card__heading">
-          <p class="login-page__eyebrow">Account</p>
+          <p class="login-page__eyebrow">账号入口</p>
           <h2>{{ modeTitle }}</h2>
           <p>{{ modeDescription }}</p>
         </div>

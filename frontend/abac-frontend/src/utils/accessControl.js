@@ -82,6 +82,10 @@ function getRequiredRankMap() {
   }
 }
 
+function isReadLikeAction(action) {
+  return action === 'READ' || action === 'EXPORT'
+}
+
 export function applyPolicyConfigSnapshot(configs = []) {
   resetPolicyConfigSnapshot()
 
@@ -163,7 +167,7 @@ export function hasPhaseActionAccess(profile, rawPhase, action = 'WRITE') {
   }
 
   if (phaseKey === 'ARCHIVED') {
-    return deptType === 'MANAGEMENT' && action === 'READ'
+    return deptType === 'MANAGEMENT' && isReadLikeAction(action)
   }
 
   const allowedDeptTypes = FULL_ACCESS_DEPTS_BY_PHASE[phaseKey] || []
@@ -172,7 +176,7 @@ export function hasPhaseActionAccess(profile, rawPhase, action = 'WRITE') {
   }
 
   if (deptType === 'MANAGEMENT') {
-    return action === 'READ'
+    return isReadLikeAction(action)
   }
 
   return false
@@ -221,6 +225,18 @@ function hasMutationMembership(
   return assumeActiveMember || (phaseKey !== 'ARCHIVED' && isOwner)
 }
 
+function hasExportMembership(
+  profile,
+  project,
+  { assumeActiveMember = false, currentEmployeeId = null } = {},
+) {
+  if (profile?.deptType === 'MANAGEMENT') {
+    return true
+  }
+
+  return hasMutationMembership(project, { assumeActiveMember, currentEmployeeId })
+}
+
 export function canCreateAsset(
   profile,
   project,
@@ -237,6 +253,33 @@ export function canCreateAsset(
 }
 
 export function canOperateAsset(
+  profile,
+  project,
+  asset,
+  { assumeActiveMember = false, currentEmployeeId = null } = {},
+) {
+  return canDeleteAsset(profile, project, asset, { assumeActiveMember, currentEmployeeId })
+}
+
+export function canExportAsset(
+  profile,
+  project,
+  asset,
+  { assumeActiveMember = false, currentEmployeeId = null } = {},
+) {
+  if (!asset) {
+    return false
+  }
+
+  return (
+    hasExportMembership(profile, project, { assumeActiveMember, currentEmployeeId }) &&
+    hasPhaseActionAccess(profile, project?.projectPhase, 'EXPORT') &&
+    hasPhaseActionAccess(profile, asset.assetsStage, 'EXPORT') &&
+    hasSecurityClearance(profile, asset.securityLevel)
+  )
+}
+
+export function canDeleteAsset(
   profile,
   project,
   asset,

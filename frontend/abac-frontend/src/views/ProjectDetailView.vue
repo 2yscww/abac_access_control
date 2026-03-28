@@ -13,6 +13,7 @@ import {
 import {
   addProjectMember,
   getProject,
+  getPhaseOwnerPreview,
   listProjectMembers,
   removeProjectMember,
   updateProjectPhase,
@@ -27,7 +28,8 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import {
   canCreateAsset as canCreateAssetByRules,
-  canOperateAsset as canOperateAssetByRules,
+  canDeleteAsset as canDeleteAssetByRules,
+  canExportAsset as canExportAssetByRules,
   getAllowedAssetStageOptions,
   getAllowedSecurityLevelOptions,
 } from '@/utils/accessControl'
@@ -36,17 +38,17 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 const deptTypeLabels = {
-  MANAGEMENT: 'Management',
-  PRODUCT: 'Product',
-  RD: 'R&D',
-  QA: 'QA',
-  OPS: 'Ops',
-  HR: 'HR',
+  MANAGEMENT: '管理层',
+  PRODUCT: '产品',
+  RD: '研发',
+  QA: '测试',
+  OPS: '运维',
+  HR: '人事',
 }
 
 const memberStatusLabels = {
-  ACTIVE: 'Active',
-  INACTIVE: 'Inactive',
+  ACTIVE: '在项',
+  INACTIVE: '离项',
 }
 
 const projectId = computed(() => Number(route.params.id))
@@ -59,8 +61,9 @@ const membersLoading = ref(false)
 const phaseSubmitting = ref(false)
 const assetSubmitting = ref(false)
 const memberSubmitting = ref(false)
-const selectedPhase = ref(1)
-const nextOwnerId = ref('')
+const selectedPhase = ref(null)
+const phaseOwnerPreview = ref(null)
+const phaseOwnerLoading = ref(false)
 const memberLoadError = ref('')
 
 const exportedPaths = reactive({})
@@ -133,6 +136,22 @@ const canManageMembers = computed(() => {
 const canEditMembers = computed(() => canManageMembers.value && !isArchived.value)
 const canAdvancePhase = computed(
   () => Boolean(project.value) && currentEmployeeId.value === Number(project.value.ownerId),
+)
+const advancePhaseOptions = computed(() => {
+  const currentOption = findOption(projectPhaseOptions, project.value?.projectPhase)
+  if (!currentOption) {
+    return []
+  }
+
+  return projectPhaseOptions.filter((option) => option.value === currentOption.value + 1)
+})
+const canSubmitPhaseChange = computed(
+  () =>
+    canAdvancePhase.value &&
+    advancePhaseOptions.value.length > 0 &&
+    selectedPhase.value != null &&
+    Boolean(phaseOwnerPreview.value?.configured) &&
+    !phaseOwnerLoading.value,
 )
 const allowedAssetStageOptions = computed(() =>
   getAllowedAssetStageOptions(currentProfile.value, project.value?.projectPhase),
@@ -207,7 +226,7 @@ const assetTypeChartOption = computed(() => {
             ? chartData
             : [
                 {
-                  name: 'No Assets',
+                  name: '暂无资产',
                   value: 1,
                   itemStyle: {
                     color: '#cbd5e1',
@@ -272,11 +291,46 @@ function isCurrentOwner(employeeId) {
   return Number(project.value?.ownerId) === Number(employeeId)
 }
 
-function canOperateAsset(asset) {
-  return canOperateAssetByRules(currentProfile.value, project.value, asset, {
+function canExportAsset(asset) {
+  return canExportAssetByRules(currentProfile.value, project.value, asset, {
     assumeActiveMember: assumeProjectMembership.value,
     currentEmployeeId: currentEmployeeId.value,
   })
+}
+
+function canDeleteAsset(asset) {
+  return canDeleteAssetByRules(currentProfile.value, project.value, asset, {
+    assumeActiveMember: assumeProjectMembership.value,
+    currentEmployeeId: currentEmployeeId.value,
+  })
+}
+
+function getNextPhaseValue(rawPhase) {
+  const currentOption = findOption(projectPhaseOptions, rawPhase)
+  return currentOption
+    ? (projectPhaseOptions.find((option) => option.value === currentOption.value + 1)?.value ?? null)
+    : null
+}
+
+async function loadPhaseOwnerPreview({ silent = false } = {}) {
+  if (!project.value || !canAdvancePhase.value || selectedPhase.value == null) {
+    phaseOwnerPreview.value = null
+    phaseOwnerLoading.value = false
+    return
+  }
+
+  phaseOwnerLoading.value = true
+
+  try {
+    phaseOwnerPreview.value = await getPhaseOwnerPreview(projectId.value, selectedPhase.value)
+  } catch (error) {
+    phaseOwnerPreview.value = null
+    if (!silent) {
+      ElMessage.error(error.message)
+    }
+  } finally {
+    phaseOwnerLoading.value = false
+  }
 }
 
 async function loadProjectCore() {
@@ -287,8 +341,8 @@ async function loadProjectCore() {
 
   project.value = projectData
   assets.value = assetData || []
-  selectedPhase.value = findOption(projectPhaseOptions, projectData.projectPhase)?.value || 1
-  nextOwnerId.value = projectData.ownerId ? String(projectData.ownerId) : ''
+  selectedPhase.value = getNextPhaseValue(projectData.projectPhase)
+  phaseOwnerPreview.value = null
   assetForm.projectId = projectId.value
   assetForm.assetsStage = findOption(projectPhaseOptions, projectData.projectPhase)?.value || 1
   syncAssetFormRestrictions()
@@ -326,6 +380,9 @@ async function loadProjectDetail() {
 
   try {
     await loadProjectCore()
+    if (canAdvancePhase.value && selectedPhase.value != null) {
+      await loadPhaseOwnerPreview({ silent: true })
+    }
     if (canManageMembers.value) {
       await loadProjectMembers({ silent: true })
     } else {
@@ -345,7 +402,13 @@ async function loadProjectDetail() {
 
 async function handleUpdatePhase() {
   if (!canAdvancePhase.value) {
-    ElMessage.warning('Only the current phase owner can advance the project phase')
+    ElMessage.warning('只有当前阶段负责人可以推进项目阶段')
+    return
+  }
+  if (!phaseOwnerPreview.value?.configured) {
+    ElMessage.warning(
+      phaseOwnerPreview.value?.message || '严格模式下无法解析下一阶段负责人',
+    )
     return
   }
 
@@ -355,9 +418,8 @@ async function handleUpdatePhase() {
     await updateProjectPhase({
       projectId: projectId.value,
       newPhase: selectedPhase.value,
-      nextOwnerId: nextOwnerId.value ? Number(nextOwnerId.value) : null,
     })
-    ElMessage.success('Project phase updated')
+    ElMessage.success('项目阶段更新成功')
     await loadProjectDetail()
   } catch (error) {
     ElMessage.error(error.message)
@@ -368,7 +430,7 @@ async function handleUpdatePhase() {
 
 async function handleCreateAsset() {
   if (!canCreateSelectedAsset.value) {
-    ElMessage.warning('Current account cannot create an asset with the selected phase or security level')
+    ElMessage.warning('当前账号不能以所选阶段或密级创建资产')
     return
   }
 
@@ -379,7 +441,7 @@ async function handleCreateAsset() {
       ...assetForm,
       fileSize: assetForm.fileSize ? Number(assetForm.fileSize) : null,
     })
-    ElMessage.success('Asset created')
+    ElMessage.success('资产创建成功')
     resetAssetForm()
     await loadProjectDetail()
   } catch (error) {
@@ -391,7 +453,7 @@ async function handleCreateAsset() {
 
 async function handleAddMember() {
   if (!canEditMembers.value) {
-    ElMessage.warning('Only the current phase owner or management can maintain project members')
+    ElMessage.warning('只有当前阶段负责人或管理层可以维护项目成员')
     return
   }
 
@@ -401,7 +463,7 @@ async function handleAddMember() {
     await addProjectMember(projectId.value, {
       employeeId: memberForm.employeeId ? Number(memberForm.employeeId) : null,
     })
-    ElMessage.success('Project member added')
+    ElMessage.success('项目成员添加成功')
     resetMemberForm()
     await loadProjectMembers({ silent: true })
   } catch (error) {
@@ -413,8 +475,8 @@ async function handleAddMember() {
 
 async function handleExportAsset(assetId) {
   const asset = assets.value.find((item) => item.assetId === assetId)
-  if (!canOperateAsset(asset)) {
-    ElMessage.warning('Current account cannot export this asset reference')
+  if (!canExportAsset(asset)) {
+    ElMessage.warning('当前账号不能导出该资产引用')
     return
   }
 
@@ -423,7 +485,7 @@ async function handleExportAsset(assetId) {
   try {
     const result = await exportAssetReference(assetId)
     exportedPaths[assetId] = result.filePath
-    ElMessage.success('Reference exported')
+    ElMessage.success('引用导出成功')
   } catch (error) {
     ElMessage.error(error.message)
   } finally {
@@ -433,19 +495,19 @@ async function handleExportAsset(assetId) {
 
 async function handleDeleteAsset(assetId) {
   const asset = assets.value.find((item) => item.assetId === assetId)
-  if (!canOperateAsset(asset)) {
-    ElMessage.warning('Current account cannot delete this asset')
+  if (!canDeleteAsset(asset)) {
+    ElMessage.warning('当前账号不能删除该资产')
     return
   }
 
   try {
     await ElMessageBox.confirm(
-      'Delete this asset? The asset record will be removed from the project.',
-      'Delete Asset',
+      '确认删除该资产吗？该资产记录会从项目中移除。',
+      '删除资产',
       {
         type: 'warning',
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
       },
     )
   } catch {
@@ -454,7 +516,7 @@ async function handleDeleteAsset(assetId) {
 
   try {
     await deleteAsset(assetId)
-    ElMessage.success('Asset deleted')
+    ElMessage.success('资产删除成功')
     await loadProjectDetail()
   } catch (error) {
     ElMessage.error(error.message)
@@ -463,18 +525,18 @@ async function handleDeleteAsset(assetId) {
 
 async function handleRemoveMember(member) {
   if (!canEditMembers.value) {
-    ElMessage.warning('Only the current phase owner or management can maintain project members')
+    ElMessage.warning('只有当前阶段负责人或管理层可以维护项目成员')
     return
   }
 
   try {
     await ElMessageBox.confirm(
-      `Remove ${member.employeeName || `Employee ${member.employeeId}`} from this project?`,
-      'Remove Member',
+      `确认将 ${member.employeeName || `员工 ${member.employeeId}`} 移出该项目吗？`,
+      '移除成员',
       {
         type: 'warning',
-        confirmButtonText: 'Remove',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: '确认移除',
+        cancelButtonText: '取消',
       },
     )
   } catch {
@@ -483,7 +545,7 @@ async function handleRemoveMember(member) {
 
   try {
     await removeProjectMember(projectId.value, member.employeeId)
-    ElMessage.success('Project member removed')
+    ElMessage.success('项目成员移除成功')
     await loadProjectMembers({ silent: true })
   } catch (error) {
     ElMessage.error(error.message)
@@ -498,17 +560,20 @@ watch(
   },
   { immediate: true },
 )
+
+watch(selectedPhase, () => {
+  loadPhaseOwnerPreview({ silent: true })
+})
 </script>
 
 <template>
   <div class="detail-page">
     <section v-if="project" class="detail-hero">
       <div>
-        <p class="detail-hero__eyebrow">Project Detail</p>
+        <p class="detail-hero__eyebrow">项目详情</p>
         <h2 class="detail-hero__title">{{ project.projectName }}</h2>
         <p class="detail-hero__description">
-          This page brings project attributes, member isolation, phase handover, and asset
-          controls into one demonstrable workflow.
+          当前页面将项目属性、成员隔离、阶段交接和资产控制整合到一个可演示的完整流程中。
         </p>
       </div>
       <div class="detail-hero__meta">
@@ -523,25 +588,25 @@ watch(
 
     <section v-if="project" class="detail-summary">
       <el-card shadow="never" class="summary-card">
-        <el-statistic title="Current Phase" :value="currentPhaseValue" suffix="/ 6" />
+        <el-statistic title="当前阶段" :value="currentPhaseValue" suffix="/ 6" />
         <el-progress :percentage="phaseProgress" :stroke-width="10" :show-text="false" />
       </el-card>
       <el-card shadow="never" class="summary-card">
-        <el-statistic title="Active Members" :value="activeMembers.length" />
+        <el-statistic title="在项成员" :value="activeMembers.length" />
         <p v-if="canManageMembers">
-          Only active project members can continue to operate on project-scoped resources.
+          只有状态为在项的项目成员，才能继续操作项目范围内的资源。
         </p>
         <p v-else>
-          Member details are visible only to the current phase owner and management.
+          成员详情仅对当前阶段负责人和管理层可见。
         </p>
       </el-card>
       <el-card shadow="never" class="summary-card">
-        <el-statistic title="Visible Assets" :value="visibleAssetCount" />
-        <p>The asset list already reflects the current ABAC decision result for this account.</p>
+        <el-statistic title="可见资产" :value="visibleAssetCount" />
+        <p>当前资产列表已经体现了该账号此刻的 ABAC 决策结果。</p>
       </el-card>
       <el-card shadow="never" class="summary-card">
-        <el-statistic title="Exported Refs" :value="exportedCount" />
-        <p>Reference paths are revealed only after an explicit export action.</p>
+        <el-statistic title="已导出引用" :value="exportedCount" />
+        <p>只有显式执行导出动作后，外部引用路径才会显示出来。</p>
       </el-card>
     </section>
 
@@ -550,27 +615,27 @@ watch(
         <template #header>
           <div class="panel-card__header">
             <div>
-              <h3>Project Snapshot</h3>
-              <p>Core attributes that participate in project and asset access decisions.</p>
+              <h3>项目快照</h3>
+              <p>参与项目与资产访问决策的核心属性会集中展示在这里。</p>
             </div>
           </div>
         </template>
 
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="Project ID">{{ project.projectId }}</el-descriptions-item>
-          <el-descriptions-item label="Current Owner">
+          <el-descriptions-item label="项目 ID">{{ project.projectId }}</el-descriptions-item>
+          <el-descriptions-item label="当前负责人">
             {{ project.ownerId || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="Created By">
+          <el-descriptions-item label="创建人">
             {{ project.createdByEmployeeId || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="Created At">
+          <el-descriptions-item label="创建时间">
             {{ project.createdAt || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="Project Phase">
+          <el-descriptions-item label="项目阶段">
             {{ getOptionLabel(projectPhaseOptions, project.projectPhase) }}
           </el-descriptions-item>
-          <el-descriptions-item label="Security Level">
+          <el-descriptions-item label="安全密级">
             {{ getOptionLabel(securityLevelOptions, project.securityLevel) }}
           </el-descriptions-item>
         </el-descriptions>
@@ -580,33 +645,33 @@ watch(
         <template #header>
           <div class="panel-card__header">
             <div>
-              <h3>Project Members</h3>
-              <p>Membership is the direct isolation layer for project pages and project assets.</p>
+              <h3>项目成员</h3>
+              <p>成员关系是项目页面和项目资产访问隔离的直接依据。</p>
             </div>
             <el-space v-if="canManageMembers" wrap>
-              <el-tag type="success" effect="light">Active {{ activeMembers.length }}</el-tag>
-              <el-tag type="info" effect="light">History {{ inactiveMembers.length }}</el-tag>
-              <el-button link @click="loadProjectMembers()">Refresh</el-button>
+              <el-tag type="success" effect="light">在项 {{ activeMembers.length }}</el-tag>
+              <el-tag type="info" effect="light">历史 {{ inactiveMembers.length }}</el-tag>
+              <el-button link @click="loadProjectMembers()">刷新</el-button>
             </el-space>
           </div>
         </template>
 
         <div v-if="canManageMembers" class="member-toolbar">
           <el-form v-if="canEditMembers" label-position="top" class="member-form">
-            <el-form-item label="Employee ID">
+            <el-form-item label="员工 ID">
               <el-input
                 v-model="memberForm.employeeId"
-                placeholder="Enter an employee ID allowed in the current phase"
+                placeholder="请输入当前阶段允许加入的员工 ID"
               />
             </el-form-item>
             <el-button type="primary" :loading="memberSubmitting" @click="handleAddMember">
-              Add Member
+              添加成员
             </el-button>
           </el-form>
 
           <el-alert
             v-else-if="isArchived"
-            title="Member maintenance is locked after the project is archived."
+            title="项目归档后，成员维护入口会被锁定。"
             type="info"
             show-icon
             :closable="false"
@@ -615,7 +680,7 @@ watch(
 
         <el-alert
           v-if="!canManageMembers"
-          title="Only the current phase owner or management can view project member details."
+          title="只有当前阶段负责人或管理层可以查看项目成员详情。"
           type="info"
           show-icon
           :closable="false"
@@ -636,39 +701,39 @@ watch(
           stripe
           class="member-table"
         >
-          <el-table-column label="Employee" min-width="190">
+          <el-table-column label="成员" min-width="190">
             <template #default="{ row }">
               <div class="member-cell">
-                <strong>{{ row.employeeName || `Employee ${row.employeeId}` }}</strong>
+                <strong>{{ row.employeeName || `员工 ${row.employeeId}` }}</strong>
                 <span>{{ row.employeeCode || row.employeeId }}</span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="Department" min-width="120">
+          <el-table-column label="所属部门" min-width="120">
             <template #default="{ row }">
               {{ getDeptLabel(row.deptType) }}
             </template>
           </el-table-column>
-          <el-table-column label="Joined Phase" min-width="130">
+          <el-table-column label="加入阶段" min-width="130">
             <template #default="{ row }">
               {{ getOptionLabel(projectPhaseOptions, row.joinedPhase) }}
             </template>
           </el-table-column>
-          <el-table-column label="Status" min-width="120">
+          <el-table-column label="状态" min-width="120">
             <template #default="{ row }">
               <el-space wrap>
                 <el-tag :type="getMemberStatusTagType(row.status)" effect="light">
                   {{ getMemberStatusLabel(row.status) }}
                 </el-tag>
                 <el-tag v-if="isCurrentOwner(row.employeeId)" type="warning" effect="light">
-                  Phase Owner
+                  阶段负责人
                 </el-tag>
               </el-space>
             </template>
           </el-table-column>
-          <el-table-column prop="joinedAt" label="Joined At" min-width="170" />
-          <el-table-column prop="leftAt" label="Left At" min-width="170" />
-          <el-table-column v-if="canEditMembers" label="Action" width="140" fixed="right">
+          <el-table-column prop="joinedAt" label="加入时间" min-width="170" />
+          <el-table-column prop="leftAt" label="离开时间" min-width="170" />
+          <el-table-column v-if="canEditMembers" label="操作" width="140" fixed="right">
             <template #default="{ row }">
               <el-button
                 type="danger"
@@ -676,7 +741,7 @@ watch(
                 :disabled="row.status !== 'ACTIVE' || isCurrentOwner(row.employeeId)"
                 @click="handleRemoveMember(row)"
               >
-                Remove
+                移除
               </el-button>
             </template>
           </el-table-column>
@@ -684,7 +749,7 @@ watch(
 
         <el-empty
           v-if="canManageMembers && !memberLoadError && !membersLoading && members.length === 0"
-          description="No member record is available for this project."
+          description="该项目暂无成员记录"
         />
       </el-card>
     </section>
@@ -694,11 +759,11 @@ watch(
         <template #header>
           <div class="panel-card__header">
             <div>
-              <h3>Asset Type Distribution</h3>
-              <p>Observe the current visible asset mix after project membership filtering.</p>
+              <h3>资产类型分布</h3>
+              <p>查看成员过滤后，当前可见资产在各类型上的分布情况。</p>
             </div>
             <el-tag type="warning" effect="light" round>
-              Sensitive {{ sensitiveAssetCount }}
+              高密 {{ sensitiveAssetCount }}
             </el-tag>
           </div>
         </template>
@@ -709,15 +774,15 @@ watch(
         <template #header>
           <div class="panel-card__header">
             <div>
-              <h3>Advance Project Phase</h3>
-              <p>Phase handover will also sync project membership on the backend.</p>
+              <h3>推进项目阶段</h3>
+              <p>阶段交接时，后端会同步处理项目成员与负责人映射。</p>
             </div>
           </div>
         </template>
 
-        <template v-if="canAdvancePhase">
+        <template v-if="canAdvancePhase && advancePhaseOptions.length > 0">
           <el-alert
-            title="The next owner must match the manager_id of the department responsible for the target phase."
+            title="严格模式会根据目标阶段所属部门的负责人自动解析下一任负责人，不允许手工录入。"
             type="warning"
             show-icon
             :closable="false"
@@ -725,32 +790,63 @@ watch(
           />
 
           <el-form label-position="top">
-            <el-form-item label="Target Phase">
-              <el-select v-model="selectedPhase" placeholder="Select the target phase">
+            <el-form-item label="目标阶段">
+              <el-select v-model="selectedPhase" placeholder="请选择目标阶段">
                 <el-option
-                  v-for="item in projectPhaseOptions"
+                  v-for="item in advancePhaseOptions"
                   :key="item.value"
                   :label="item.label"
                   :value="item.value"
                 />
               </el-select>
             </el-form-item>
-            <el-form-item label="Next Owner ID">
-              <el-input
-                v-model="nextOwnerId"
-                placeholder="Enter the employee ID for the next phase owner"
+            <el-form-item label="严格模式下一任负责人">
+              <el-skeleton v-if="phaseOwnerLoading" :rows="2" animated />
+              <el-descriptions v-else-if="phaseOwnerPreview?.configured" :column="1" border>
+                <el-descriptions-item label="人员">
+                  <div class="phase-owner-card">
+                    <strong>{{ phaseOwnerPreview.employeeName || '-' }}</strong>
+                    <span>
+                      {{ phaseOwnerPreview.employeeCode || phaseOwnerPreview.employeeId || '-' }}
+                    </span>
+                  </div>
+                </el-descriptions-item>
+                <el-descriptions-item label="部门">
+                  {{ phaseOwnerPreview.deptName || phaseOwnerPreview.deptType || '-' }}
+                </el-descriptions-item>
+              </el-descriptions>
+              <el-alert
+                v-else
+                :title="phaseOwnerPreview?.message || '请选择目标阶段以解析下一任负责人。'"
+                type="warning"
+                show-icon
+                :closable="false"
               />
             </el-form-item>
           </el-form>
 
-          <el-button type="primary" :loading="phaseSubmitting" @click="handleUpdatePhase">
-            Submit Phase Change
+          <el-button
+            type="primary"
+            :loading="phaseSubmitting"
+            :disabled="!canSubmitPhaseChange"
+            @click="handleUpdatePhase"
+          >
+            提交阶段变更
           </el-button>
         </template>
 
         <el-alert
+          v-else-if="canAdvancePhase"
+          title="当前已经是终止阶段，无法继续执行严格模式交接。"
+          type="info"
+          show-icon
+          :closable="false"
+          class="panel-alert"
+        />
+
+        <el-alert
           v-else
-          title="Only the current phase owner can advance the project phase."
+          title="只有当前阶段负责人可以推进项目阶段。"
           type="info"
           show-icon
           :closable="false"
@@ -763,10 +859,9 @@ watch(
       <template #header>
         <div class="panel-card__header">
           <div>
-            <h3>Create Project Asset</h3>
+            <h3>新建项目资产</h3>
             <p>
-              Only stages and security levels still allowed for the current account remain
-              selectable here.
+              这里仅保留当前账号仍被允许使用的资产阶段与密级选项。
             </p>
           </div>
         </div>
@@ -774,7 +869,7 @@ watch(
 
       <el-alert
         v-if="!canCreateAnyAsset"
-        title="Current account cannot create assets in this project under the active phase, membership, or security rules."
+        title="当前账号在现有阶段、成员关系或密级规则下不能在该项目中创建资产。"
         type="info"
         show-icon
         :closable="false"
@@ -782,11 +877,11 @@ watch(
 
       <template v-else>
         <el-form label-position="top" class="asset-form">
-          <el-form-item label="Asset Name">
-            <el-input v-model="assetForm.assetName" placeholder="Enter an asset name" />
+          <el-form-item label="资产名称">
+            <el-input v-model="assetForm.assetName" placeholder="请输入资产名称" />
           </el-form-item>
-          <el-form-item label="Asset Type">
-            <el-select v-model="assetForm.assetsType" placeholder="Select an asset type">
+          <el-form-item label="资产类型">
+            <el-select v-model="assetForm.assetsType" placeholder="请选择资产类型">
               <el-option
                 v-for="item in assetTypeOptions"
                 :key="item.value"
@@ -795,8 +890,8 @@ watch(
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="Asset Phase">
-            <el-select v-model="assetForm.assetsStage" placeholder="Select an asset phase">
+          <el-form-item label="资产阶段">
+            <el-select v-model="assetForm.assetsStage" placeholder="请选择资产阶段">
               <el-option
                 v-for="item in allowedAssetStageOptions"
                 :key="item.value"
@@ -805,8 +900,8 @@ watch(
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="Security Level">
-            <el-select v-model="assetForm.securityLevel" placeholder="Select a security level">
+          <el-form-item label="安全密级">
+            <el-select v-model="assetForm.securityLevel" placeholder="请选择安全密级">
               <el-option
                 v-for="item in allowedAssetSecurityOptions"
                 :key="item.value"
@@ -815,27 +910,27 @@ watch(
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="External Reference / Git URL">
+          <el-form-item label="外部引用 / Git URL">
             <el-input
               v-model="assetForm.filePath"
-              placeholder="Enter a storage or repository path"
+              placeholder="请输入存储路径或代码仓库地址"
             />
           </el-form-item>
-          <el-form-item label="File Size (bytes)">
-            <el-input v-model="assetForm.fileSize" placeholder="Optional" />
+          <el-form-item label="文件大小（字节）">
+            <el-input v-model="assetForm.fileSize" placeholder="可选" />
           </el-form-item>
-          <el-form-item label="Description" class="asset-form__full">
+          <el-form-item label="说明" class="asset-form__full">
             <el-input
               v-model="assetForm.description"
               type="textarea"
               :rows="4"
-              placeholder="Add a short note about this asset"
+              placeholder="补充该资产的简要说明"
             />
           </el-form-item>
         </el-form>
 
         <el-button type="primary" :loading="assetSubmitting" @click="handleCreateAsset">
-          Create Asset
+          创建资产
         </el-button>
       </template>
     </el-card>
@@ -844,65 +939,70 @@ watch(
       <template #header>
         <div class="panel-card__header">
           <div>
-            <h3>Project Assets</h3>
+            <h3>项目资产</h3>
             <p>
-              Regular reads return metadata only. The external reference appears after an explicit
-              export action.
+              默认读取只返回元数据；外部引用需在显式执行导出后才会显示。
             </p>
           </div>
-          <el-tag type="info" effect="light">Total {{ assets.length }}</el-tag>
+          <el-tag type="info" effect="light">共 {{ assets.length }} 条</el-tag>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="assets" stripe>
-        <el-table-column prop="assetName" label="Asset Name" min-width="180" />
-        <el-table-column label="Type" min-width="140">
+        <el-table-column prop="assetName" label="资产名称" min-width="180" />
+        <el-table-column label="类型" min-width="140">
           <template #default="{ row }">
             {{ getOptionLabel(assetTypeOptions, row.assetsType) }}
           </template>
         </el-table-column>
-        <el-table-column label="Phase" min-width="120">
+        <el-table-column label="阶段" min-width="120">
           <template #default="{ row }">
             {{ getOptionLabel(projectPhaseOptions, row.assetsStage) }}
           </template>
         </el-table-column>
-        <el-table-column label="Security" min-width="120">
+        <el-table-column label="密级" min-width="120">
           <template #default="{ row }">
             <el-tag effect="light">
               {{ getOptionLabel(securityLevelOptions, row.securityLevel) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdByEmployeeId" label="Created By" min-width="110" />
-        <el-table-column label="Reference" min-width="230">
+        <el-table-column prop="createdByEmployeeId" label="创建人" min-width="110" />
+        <el-table-column label="引用地址" min-width="230">
           <template #default="{ row }">
-            <span class="reference-text">{{ exportedPaths[row.assetId] || 'Hidden until export' }}</span>
+            <span class="reference-text">{{ exportedPaths[row.assetId] || '导出后可见' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="Description" min-width="180" />
-        <el-table-column label="Action" width="180" fixed="right">
+        <el-table-column prop="description" label="说明" min-width="180" />
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-space v-if="canOperateAsset(row)">
+            <el-space v-if="canExportAsset(row) || canDeleteAsset(row)">
               <el-button
+                v-if="canExportAsset(row)"
                 type="primary"
                 link
                 :loading="Boolean(exportingAssetIds[row.assetId])"
                 @click="handleExportAsset(row.assetId)"
               >
-                Export Ref
+                导出引用
               </el-button>
-              <el-button type="danger" link @click="handleDeleteAsset(row.assetId)">
-                Delete
+              <el-button
+                v-if="canDeleteAsset(row)"
+                type="danger"
+                link
+                @click="handleDeleteAsset(row.assetId)"
+              >
+                删除
               </el-button>
             </el-space>
-            <span v-else class="reference-text">Read only</span>
+            <span v-else class="reference-text">只读</span>
           </template>
         </el-table-column>
       </el-table>
 
       <el-empty
         v-if="!loading && assets.length === 0"
-        description="No accessible asset is available under this project."
+        description="该项目下暂无当前账号可访问的资产"
       />
     </el-card>
   </div>
@@ -1034,6 +1134,11 @@ watch(
 }
 
 .member-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.phase-owner-card {
   display: grid;
   gap: 4px;
 }

@@ -9,12 +9,12 @@ const route = useRoute()
 const router = useRouter()
 
 const navItems = [
-  { name: 'projects', label: 'Projects', menuKey: 'projects' },
-  { name: 'assets', label: 'Assets', menuKey: 'assets' },
-  { name: 'files', label: 'Files', menuKey: 'files' },
-  { name: 'handover', label: 'Handover', menuKey: 'handover' },
-  { name: 'audit', label: 'Audit', menuKey: 'audit' },
-  { name: 'policy', label: 'Policy', menuKey: 'policy' },
+  { name: 'projects', label: '项目总览', menuKey: 'projects' },
+  { name: 'assets', label: '资产中心', menuKey: 'assets' },
+  { name: 'files', label: '文件中心', menuKey: 'files' },
+  { name: 'handover', label: '交接工作台', menuKey: 'handover' },
+  { name: 'audit', label: '审计日志', menuKey: 'audit' },
+  { name: 'policy', label: '策略配置', menuKey: 'policy' },
 ]
 
 const visibleNavItems = computed(() =>
@@ -48,10 +48,10 @@ function logout() {
 <template>
   <aside class="app-sidebar">
     <div class="app-sidebar__brand">
-      <p class="app-sidebar__eyebrow">ABAC Platform</p>
-      <h1 class="app-sidebar__title">Access Control And Audit</h1>
+      <p class="app-sidebar__eyebrow">ABAC 权限平台</p>
+      <h1 class="app-sidebar__title">权限控制与安全审计</h1>
       <p class="app-sidebar__subtitle">
-        {{ authStore.profile?.deptTypeDesc || 'Workspace' }}
+        {{ authStore.profile?.deptTypeDesc || '业务工作台' }}
       </p>
     </div>
 
@@ -65,7 +65,7 @@ function logout() {
 
     <div class="app-sidebar__footer">
       <el-tag effect="plain">{{ employeeLabel }}</el-tag>
-      <el-button plain @click="logout">Logout</el-button>
+      <el-button plain @click="logout">退出登录</el-button>
     </div>
   </aside>
 </template>

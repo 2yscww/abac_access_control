@@ -88,7 +88,7 @@ function upsertPolicyConfig(updatedConfig) {
 }
 
 function formatDateTime(value) {
-  return value ? String(value).replace('T', ' ') : 'Code default'
+  return value ? String(value).replace('T', ' ') : '代码默认值'
 }
 
 function buildPayload(policyName) {
@@ -149,7 +149,7 @@ async function savePolicy(policyName) {
   try {
     const data = await updatePolicyConfig(policyName, buildPayload(policyName))
     upsertPolicyConfig(data)
-    ElMessage.success(`${data.displayName} updated`)
+    ElMessage.success(`${data.displayName} 已更新`)
   } catch (error) {
     ElMessage.error(error.message)
   } finally {
@@ -166,34 +166,33 @@ onMounted(() => {
   <div class="policy-page">
     <section class="policy-hero">
       <div>
-        <p class="policy-hero__eyebrow">Policy Admin</p>
-        <h2 class="policy-hero__title">Parameterized ABAC controls</h2>
+        <p class="policy-hero__eyebrow">策略配置</p>
+        <h2 class="policy-hero__title">参数化 ABAC 控制面板</h2>
         <p class="policy-hero__description">
-          Policy logic remains fixed in the backend, while selected thresholds and switches are
-          editable through this page for demo and operations scenarios.
+          ABAC 的核心策略逻辑固定在后端代码中，这里只开放部分阈值和开关，便于演示和运维调参。
         </p>
       </div>
-      <el-button plain :loading="loading" @click="loadPolicyConfigs">Refresh</el-button>
+      <el-button plain :loading="loading" @click="loadPolicyConfigs">刷新</el-button>
     </section>
 
     <section class="policy-summary">
       <el-card shadow="never" class="summary-card">
-        <el-statistic title="Editable Policies" :value="3" />
-        <p>The current build exposes three runtime-tunable security controls.</p>
+        <el-statistic title="可调策略数" :value="3" />
+        <p>当前版本开放了 3 组可在运行期调整的安全控制参数。</p>
       </el-card>
       <el-card shadow="never" class="summary-card">
-        <el-statistic title="Enabled Policies" :value="enabledPolicyCount" />
-        <p>Each policy can be switched on or off without changing the hardcoded logic.</p>
+        <el-statistic title="已启用策略" :value="enabledPolicyCount" />
+        <p>每项策略都可以独立启停，而不需要改动后端硬编码逻辑。</p>
       </el-card>
       <el-card shadow="never" class="summary-card">
-        <el-statistic title="Admin Capability" :value="canManagePolicy ? 1 : 0" />
-        <p>The policy page is visible only when the current account owns `policy.manage`.</p>
+        <el-statistic title="管理权限" :value="canManagePolicy ? 1 : 0" />
+        <p>只有当前账号具备 `policy.manage` 能力时，才可以访问并修改本页内容。</p>
       </el-card>
     </section>
 
     <el-alert
       v-if="!canManagePolicy"
-      title="Current account cannot manage policy parameters."
+      title="当前账号没有策略参数管理权限。"
       type="warning"
       show-icon
       :closable="false"
@@ -205,33 +204,33 @@ onMounted(() => {
           <template #header>
             <div class="panel-card__header">
               <div>
-                <h3>Security Thresholds</h3>
-                <p>Controls the minimum employee rank required by each security level.</p>
+                <h3>密级阈值</h3>
+                <p>控制不同安全密级对应的员工最低职级要求。</p>
               </div>
               <el-switch v-model="forms.SecurityLevelPolicy.enabled" />
             </div>
           </template>
 
           <el-form label-position="top" class="policy-form">
-            <el-form-item label="PUBLIC minimum rank">
+            <el-form-item label="公开级最低职级">
               <el-input
                 v-model="forms.SecurityLevelPolicy.conditions.publicMinRank"
                 type="number"
               />
             </el-form-item>
-            <el-form-item label="INTERNAL minimum rank">
+            <el-form-item label="内部级最低职级">
               <el-input
                 v-model="forms.SecurityLevelPolicy.conditions.internalMinRank"
                 type="number"
               />
             </el-form-item>
-            <el-form-item label="CONFIDENTIAL minimum rank">
+            <el-form-item label="机密级最低职级">
               <el-input
                 v-model="forms.SecurityLevelPolicy.conditions.confidentialMinRank"
                 type="number"
               />
             </el-form-item>
-            <el-form-item label="TOP_SECRET minimum rank">
+            <el-form-item label="绝密级最低职级">
               <el-input
                 v-model="forms.SecurityLevelPolicy.conditions.topSecretMinRank"
                 type="number"
@@ -241,7 +240,7 @@ onMounted(() => {
 
           <div class="panel-card__footer">
             <span>
-              Last updated:
+              最近更新：
               {{ formatDateTime(policyConfigs.find((item) => item.policyName === 'SecurityLevelPolicy')?.updatedAt) }}
             </span>
             <el-button
@@ -249,7 +248,7 @@ onMounted(() => {
               :loading="Boolean(saving.SecurityLevelPolicy)"
               @click="savePolicy('SecurityLevelPolicy')"
             >
-              Save
+              保存
             </el-button>
           </div>
         </el-card>
@@ -258,25 +257,25 @@ onMounted(() => {
           <template #header>
             <div class="panel-card__header">
               <div>
-                <h3>Working Hours</h3>
-                <p>Controls the time window for sensitive access checked by the environment policy.</p>
+                <h3>工作时间窗口</h3>
+                <p>控制环境策略校验高敏访问时所采用的时间范围。</p>
               </div>
               <el-switch v-model="forms.EnvironmentAccessPolicy.enabled" />
             </div>
           </template>
 
           <el-form label-position="top" class="policy-form">
-            <el-form-item label="workStart (HH:mm)">
+            <el-form-item label="开始时间（HH:mm）">
               <el-input v-model="forms.EnvironmentAccessPolicy.conditions.workStart" />
             </el-form-item>
-            <el-form-item label="workEnd (HH:mm)">
+            <el-form-item label="结束时间（HH:mm）">
               <el-input v-model="forms.EnvironmentAccessPolicy.conditions.workEnd" />
             </el-form-item>
           </el-form>
 
           <div class="panel-card__footer">
             <span>
-              Last updated:
+              最近更新：
               {{ formatDateTime(policyConfigs.find((item) => item.policyName === 'EnvironmentAccessPolicy')?.updatedAt) }}
             </span>
             <el-button
@@ -284,7 +283,7 @@ onMounted(() => {
               :loading="Boolean(saving.EnvironmentAccessPolicy)"
               @click="savePolicy('EnvironmentAccessPolicy')"
             >
-              Save
+              保存
             </el-button>
           </div>
         </el-card>
@@ -293,21 +292,21 @@ onMounted(() => {
           <template #header>
             <div class="panel-card__header">
               <div>
-                <h3>Export Guard</h3>
-                <p>Controls the export threshold and rolling time window used by the history policy.</p>
+                <h3>导出保护</h3>
+                <p>控制历史导出策略使用的导出阈值和滚动时间窗口。</p>
               </div>
               <el-switch v-model="forms.HistoricalExportPolicy.enabled" />
             </div>
           </template>
 
           <el-form label-position="top" class="policy-form">
-            <el-form-item label="exportThreshold">
+            <el-form-item label="导出阈值">
               <el-input
                 v-model="forms.HistoricalExportPolicy.conditions.exportThreshold"
                 type="number"
               />
             </el-form-item>
-            <el-form-item label="exportWindowMinutes">
+            <el-form-item label="统计窗口（分钟）">
               <el-input
                 v-model="forms.HistoricalExportPolicy.conditions.exportWindowMinutes"
                 type="number"
@@ -317,7 +316,7 @@ onMounted(() => {
 
           <div class="panel-card__footer">
             <span>
-              Last updated:
+              最近更新：
               {{ formatDateTime(policyConfigs.find((item) => item.policyName === 'HistoricalExportPolicy')?.updatedAt) }}
             </span>
             <el-button
@@ -325,7 +324,7 @@ onMounted(() => {
               :loading="Boolean(saving.HistoricalExportPolicy)"
               @click="savePolicy('HistoricalExportPolicy')"
             >
-              Save
+              保存
             </el-button>
           </div>
         </el-card>
