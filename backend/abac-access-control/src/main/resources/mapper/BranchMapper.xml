@@ -14,4 +14,12 @@
         WHERE branch_id = #{branchId}
     </select>
 
+    <select id="selectAll" resultType="com.xie.platform.model.Branch">
+        SELECT
+            branch_id,
+            branch_name
+        FROM branches
+        ORDER BY branch_id
+    </select>
+
 </mapper>

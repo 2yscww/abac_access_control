@@ -6,11 +6,11 @@ import com.xie.platform.access.pep.PolicyEnforcementPoint;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.dto.CreateAssetDTO;
 import com.xie.platform.dto.UploadAssetDTO;
-import com.xie.platform.exception.BizException;
 import com.xie.platform.mapper.ProjectAssetsMapper;
 import com.xie.platform.mapper.ProjectMapper;
 import com.xie.platform.model.ProjectAssets;
 import com.xie.platform.model.Projects;
+import com.xie.platform.model.enumValue.AssetType;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
 import com.xie.platform.service.FileStorageService;
@@ -27,13 +27,10 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,27 +52,8 @@ class ProjectAssetsServiceImplTest {
     private ProjectAssetsServiceImpl projectAssetsService;
 
     @Test
-    void createAsset_shouldRejectFutureStage() {
+    void createAsset_shouldUseCurrentProjectPhaseForPepAndPersistence() {
         CreateAssetDTO dto = buildCreateAssetDto();
-        dto.setAssetsStage(ProjectPhase.DEVELOPMENT.getCode());
-
-        Projects project = new Projects();
-        project.setProjectId(dto.getProjectId());
-        project.setProjectPhase(ProjectPhase.REQUIREMENT);
-        project.setSecurityLevel(SecurityLevel.INTERNAL);
-
-        when(projectMapper.selectById(dto.getProjectId())).thenReturn(project);
-
-        assertThrows(BizException.class, () -> projectAssetsService.createAsset(dto, 7L));
-
-        verifyNoInteractions(pep);
-        verify(projectAssetsMapper, never()).insert(any(ProjectAssets.class));
-    }
-
-    @Test
-    void createAsset_shouldAllowHistoricalStageAndPassItIntoPepResource() {
-        CreateAssetDTO dto = buildCreateAssetDto();
-        dto.setAssetsStage(ProjectPhase.INIT.getCode());
 
         Projects project = new Projects();
         project.setProjectId(dto.getProjectId());
@@ -98,12 +76,17 @@ class ProjectAssetsServiceImplTest {
 
         Resource resource = resourceCaptor.getValue();
         assertEquals(ProjectPhase.DEVELOPMENT, resource.getProjectPhase());
-        assertEquals(ProjectPhase.INIT, resource.getAssetsStage());
+        assertEquals(ProjectPhase.DEVELOPMENT, resource.getAssetsStage());
         assertEquals(SecurityLevel.INTERNAL, resource.getSecurityLevel());
+        assertEquals(AssetType.REQUIREMENT_DOC, resource.getAssetType());
+
+        ArgumentCaptor<ProjectAssets> assetCaptor = ArgumentCaptor.forClass(ProjectAssets.class);
+        verify(projectAssetsMapper).insert(assetCaptor.capture());
+        assertEquals(ProjectPhase.DEVELOPMENT, assetCaptor.getValue().getAssetsStage());
     }
 
     @Test
-    void uploadAsset_shouldPersistStoragePathAndActualFileSize() {
+    void uploadAsset_shouldPersistStoragePathActualFileSizeAndCurrentProjectPhase() {
         UploadAssetDTO dto = buildUploadAssetDto();
         Projects project = new Projects();
         project.setProjectId(dto.getProjectId());
@@ -134,6 +117,8 @@ class ProjectAssetsServiceImplTest {
         verify(projectAssetsMapper).insert(assetCaptor.capture());
         assertEquals("minio://abac-assets/project-assets/1/demo.xlsx", assetCaptor.getValue().getFilePath());
         assertEquals(file.getSize(), assetCaptor.getValue().getFileSize());
+        assertEquals(ProjectPhase.DEVELOPMENT, assetCaptor.getValue().getAssetsStage());
+        assertEquals(AssetType.REQUIREMENT_DOC, assetCaptor.getValue().getAssetsType());
     }
 
     @Test
@@ -204,7 +189,6 @@ class ProjectAssetsServiceImplTest {
         dto.setProjectId(1L);
         dto.setAssetName("budget-sheet");
         dto.setAssetsType(1);
-        dto.setAssetsStage(ProjectPhase.REQUIREMENT.getCode());
         dto.setSecurityLevel(SecurityLevel.INTERNAL.getLevel());
         dto.setFilePath("oss://bucket/project/budget-sheet.xlsx");
         dto.setDescription("external reference");
@@ -216,7 +200,6 @@ class ProjectAssetsServiceImplTest {
         dto.setProjectId(1L);
         dto.setAssetName("budget-sheet");
         dto.setAssetsType(1);
-        dto.setAssetsStage(ProjectPhase.REQUIREMENT.getCode());
         dto.setSecurityLevel(SecurityLevel.INTERNAL.getLevel());
         dto.setDescription("uploaded into minio");
         return dto;

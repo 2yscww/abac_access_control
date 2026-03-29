@@ -2,8 +2,12 @@ package com.xie.platform.service.impl;
 
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.subject.Subject;
+import com.xie.platform.dto.BranchOptionDTO;
 import com.xie.platform.dto.CreateEmployeeDTO;
+import com.xie.platform.dto.DepartmentOptionDTO;
 import com.xie.platform.dto.EmployeeActiveQueryDTO;
+import com.xie.platform.dto.EmployeeOnboardOptionsDTO;
+import com.xie.platform.dto.EmployeeOnboardResultDTO;
 import com.xie.platform.dto.EmployeeOptionDTO;
 import com.xie.platform.dto.EmployeeProfileDTO;
 import com.xie.platform.dto.OffboardEmployeeDTO;
@@ -39,6 +43,7 @@ import java.util.Map;
 public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
     private static final Logger log = LoggerFactory.getLogger(EmployeeAuthServiceImpl.class);
+    private static final String DEFAULT_INITIAL_PASSWORD = "ABACtest";
 
     @Autowired
     private EmployeesMapper employeesMapper;
@@ -212,7 +217,7 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
     @Override
     @Transactional
-    public void createEmployee(CreateEmployeeDTO dto, Long operatorEmployeeId) {
+    public EmployeeOnboardResultDTO createEmployee(CreateEmployeeDTO dto, Long operatorEmployeeId) {
         ensureHrOperator(operatorEmployeeId);
 
         if (dto.getEmployeeName() == null || dto.getEmployeeName().isBlank()) {
@@ -245,8 +250,7 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
             throw new BizException("非法的员工职级");
         }
 
-        String defaultPwd = "ABACtest";
-        String encodedPwd = passwordEncoder.encode(defaultPwd);
+        String encodedPwd = passwordEncoder.encode(DEFAULT_INITIAL_PASSWORD);
 
         Employees employee = new Employees();
         employee.setEmployeeCode("PENDING");
@@ -260,7 +264,46 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         employee.setMustChangePassword(true);
 
         employeesMapper.insert(employee);
-        employeesMapper.updateEmployeeCode(employee.getEmployeeId(), String.valueOf(employee.getEmployeeId() + 1000));
+        String generatedEmployeeCode = String.valueOf(employee.getEmployeeId() + 1000);
+        employeesMapper.updateEmployeeCode(employee.getEmployeeId(), generatedEmployeeCode);
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("approverId", operatorEmployeeId);
+        detail.put("employeeId", employee.getEmployeeId());
+        detail.put("employeeCode", generatedEmployeeCode);
+        detail.put("employeeName", employee.getEmployeeName());
+        detail.put("deptId", dept.getDeptId());
+        detail.put("deptName", dept.getDeptName());
+        detail.put("deptType", dept.getDeptType() != null ? dept.getDeptType().name() : null);
+        detail.put("branchId", branch.getBranchId());
+        detail.put("branchName", branch.getBranchName());
+        detail.put("level", level.name());
+        detail.put("levelRank", level.getRank());
+        detail.put("isContractor", employee.getIsContractor());
+        detail.put("mustChangePassword", employee.getMustChangePassword());
+
+        auditLogService.recordBusinessEvent(
+                operatorEmployeeId,
+                "EMPLOYEE",
+                employee.getEmployeeId(),
+                Action.ONBOARD_EMPLOYEE,
+                detail
+        );
+
+        EmployeeOnboardResultDTO result = new EmployeeOnboardResultDTO();
+        result.setEmployeeId(employee.getEmployeeId());
+        result.setEmployeeCode(generatedEmployeeCode);
+        result.setEmployeeName(employee.getEmployeeName());
+        result.setDeptId(dept.getDeptId());
+        result.setDeptName(dept.getDeptName());
+        result.setBranchId(branch.getBranchId());
+        result.setBranchName(branch.getBranchName());
+        result.setLevel(level.name());
+        result.setLevelRank(level.getRank());
+        result.setIsContractor(employee.getIsContractor());
+        result.setInitialPassword(DEFAULT_INITIAL_PASSWORD);
+        result.setMustChangePassword(employee.getMustChangePassword());
+        return result;
     }
 
     @Override
@@ -312,6 +355,24 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
                 ? query.getKeyword().trim()
                 : null;
         return employeesMapper.selectActiveOptions(keyword);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EmployeeOnboardOptionsDTO getEmployeeOnboardOptions(Long operatorEmployeeId) {
+        ensureHrOperator(operatorEmployeeId);
+
+        List<DepartmentOptionDTO> departmentOptions = departmentMapper.selectAll().stream()
+                .map(this::toDepartmentOption)
+                .toList();
+        List<BranchOptionDTO> branchOptions = branchMapper.selectAll().stream()
+                .map(this::toBranchOption)
+                .toList();
+
+        EmployeeOnboardOptionsDTO result = new EmployeeOnboardOptionsDTO();
+        result.setDepartments(departmentOptions);
+        result.setBranches(branchOptions);
+        return result;
     }
 
     @Override
@@ -385,6 +446,7 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
 
         if (deptType == DeptType.HR) {
             capabilities.add("handover.view");
+            capabilities.add("handover.onboard");
             capabilities.add("handover.offboard");
         }
         if (deptType == DeptType.MANAGEMENT) {
@@ -414,6 +476,22 @@ public class EmployeeAuthServiceImpl implements EmployeeAuthService {
         if (operatorDept.getDeptType() != DeptType.HR) {
             throw new BizException("仅人事部允许执行该操作");
         }
+    }
+
+    private DepartmentOptionDTO toDepartmentOption(Department department) {
+        DepartmentOptionDTO option = new DepartmentOptionDTO();
+        option.setDeptId(department.getDeptId());
+        option.setDeptName(department.getDeptName());
+        option.setDeptType(department.getDeptType() != null ? department.getDeptType().name() : null);
+        option.setDeptTypeDesc(department.getDeptType() != null ? department.getDeptType().getDesc() : null);
+        return option;
+    }
+
+    private BranchOptionDTO toBranchOption(Branch branch) {
+        BranchOptionDTO option = new BranchOptionDTO();
+        option.setBranchId(branch.getBranchId());
+        option.setBranchName(branch.getBranchName());
+        return option;
     }
 
     private Map<String, Object> buildLoginSuccessDetail(Employees employee, String tokenType, boolean mustChangePassword) {

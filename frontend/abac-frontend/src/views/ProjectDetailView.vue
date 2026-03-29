@@ -5,7 +5,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 import InsightChart from '@/components/InsightChart.vue'
 import {
-  createAsset,
   deleteAsset,
   exportAssetReference,
   getAssetsByProject,
@@ -27,11 +26,8 @@ import {
 } from '@/constants/options'
 import { useAuthStore } from '@/stores/auth'
 import {
-  canCreateAsset as canCreateAssetByRules,
   canDeleteAsset as canDeleteAssetByRules,
   canExportAsset as canExportAssetByRules,
-  getAllowedAssetStageOptions,
-  getAllowedSecurityLevelOptions,
 } from '@/utils/accessControl'
 
 const route = useRoute()
@@ -59,7 +55,6 @@ const members = ref([])
 const loading = ref(false)
 const membersLoading = ref(false)
 const phaseSubmitting = ref(false)
-const assetSubmitting = ref(false)
 const memberSubmitting = ref(false)
 const selectedPhase = ref(null)
 const phaseOwnerPreview = ref(null)
@@ -68,17 +63,6 @@ const memberLoadError = ref('')
 
 const exportedPaths = reactive({})
 const exportingAssetIds = reactive({})
-
-const assetForm = reactive({
-  projectId: projectId.value,
-  assetName: '',
-  assetsType: 1,
-  assetsStage: 1,
-  securityLevel: 2,
-  filePath: '',
-  fileSize: '',
-  description: '',
-})
 
 const memberForm = reactive({
   employeeId: '',
@@ -153,42 +137,6 @@ const canSubmitPhaseChange = computed(
     Boolean(phaseOwnerPreview.value?.configured) &&
     !phaseOwnerLoading.value,
 )
-const allowedAssetStageOptions = computed(() =>
-  getAllowedAssetStageOptions(currentProfile.value, project.value?.projectPhase),
-)
-const allowedAssetSecurityOptions = computed(() =>
-  getAllowedSecurityLevelOptions(currentProfile.value),
-)
-const canCreateAnyAsset = computed(
-  () =>
-    Boolean(project.value) &&
-    allowedAssetStageOptions.value.some((stageOption) =>
-      allowedAssetSecurityOptions.value.some((securityOption) =>
-        canCreateAssetByRules(
-          currentProfile.value,
-          project.value,
-          stageOption.value,
-          securityOption.value,
-          {
-            assumeActiveMember: assumeProjectMembership.value,
-            currentEmployeeId: currentEmployeeId.value,
-          },
-        ),
-      ),
-    ),
-)
-const canCreateSelectedAsset = computed(() =>
-  canCreateAssetByRules(
-    currentProfile.value,
-    project.value,
-    assetForm.assetsStage,
-    assetForm.securityLevel,
-    {
-      assumeActiveMember: assumeProjectMembership.value,
-      currentEmployeeId: currentEmployeeId.value,
-    },
-  ),
-)
 
 const assetTypeChartOption = computed(() => {
   const chartData = assetTypeOptions
@@ -244,31 +192,6 @@ const assetTypeChartOption = computed(() => {
 function resetExportState() {
   Object.keys(exportedPaths).forEach((key) => delete exportedPaths[key])
   Object.keys(exportingAssetIds).forEach((key) => delete exportingAssetIds[key])
-}
-
-function syncAssetFormRestrictions() {
-  if (
-    !allowedAssetStageOptions.value.some((option) => option.value === assetForm.assetsStage)
-  ) {
-    assetForm.assetsStage = allowedAssetStageOptions.value[0]?.value || ''
-  }
-
-  if (
-    !allowedAssetSecurityOptions.value.some(
-      (option) => option.value === assetForm.securityLevel,
-    )
-  ) {
-    assetForm.securityLevel = allowedAssetSecurityOptions.value[0]?.value || ''
-  }
-}
-
-function resetAssetForm() {
-  assetForm.assetName = ''
-  assetForm.assetsType = 1
-  assetForm.filePath = ''
-  assetForm.fileSize = ''
-  assetForm.description = ''
-  syncAssetFormRestrictions()
 }
 
 function resetMemberForm() {
@@ -343,9 +266,6 @@ async function loadProjectCore() {
   assets.value = assetData || []
   selectedPhase.value = getNextPhaseValue(projectData.projectPhase)
   phaseOwnerPreview.value = null
-  assetForm.projectId = projectId.value
-  assetForm.assetsStage = findOption(projectPhaseOptions, projectData.projectPhase)?.value || 1
-  syncAssetFormRestrictions()
   resetExportState()
 }
 
@@ -425,29 +345,6 @@ async function handleUpdatePhase() {
     ElMessage.error(error.message)
   } finally {
     phaseSubmitting.value = false
-  }
-}
-
-async function handleCreateAsset() {
-  if (!canCreateSelectedAsset.value) {
-    ElMessage.warning('当前账号不能以所选阶段或密级创建资产')
-    return
-  }
-
-  assetSubmitting.value = true
-
-  try {
-    await createAsset({
-      ...assetForm,
-      fileSize: assetForm.fileSize ? Number(assetForm.fileSize) : null,
-    })
-    ElMessage.success('资产创建成功')
-    resetAssetForm()
-    await loadProjectDetail()
-  } catch (error) {
-    ElMessage.error(error.message)
-  } finally {
-    assetSubmitting.value = false
   }
 }
 
@@ -555,7 +452,6 @@ async function handleRemoveMember(member) {
 watch(
   projectId,
   () => {
-    assetForm.projectId = projectId.value
     loadProjectDetail()
   },
   { immediate: true },
@@ -855,86 +751,6 @@ watch(selectedPhase, () => {
       </el-card>
     </section>
 
-    <el-card v-if="project" shadow="never" class="panel-card">
-      <template #header>
-        <div class="panel-card__header">
-          <div>
-            <h3>新建项目资产</h3>
-            <p>
-              这里仅保留当前账号仍被允许使用的资产阶段与密级选项。
-            </p>
-          </div>
-        </div>
-      </template>
-
-      <el-alert
-        v-if="!canCreateAnyAsset"
-        title="当前账号在现有阶段、成员关系或密级规则下不能在该项目中创建资产。"
-        type="info"
-        show-icon
-        :closable="false"
-      />
-
-      <template v-else>
-        <el-form label-position="top" class="asset-form">
-          <el-form-item label="资产名称">
-            <el-input v-model="assetForm.assetName" placeholder="请输入资产名称" />
-          </el-form-item>
-          <el-form-item label="资产类型">
-            <el-select v-model="assetForm.assetsType" placeholder="请选择资产类型">
-              <el-option
-                v-for="item in assetTypeOptions"
-                :key="item.value"
-                :label="item.label"
-                :value="item.value"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="资产阶段">
-            <el-select v-model="assetForm.assetsStage" placeholder="请选择资产阶段">
-              <el-option
-                v-for="item in allowedAssetStageOptions"
-                :key="item.value"
-                :label="item.label"
-                :value="item.value"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="安全密级">
-            <el-select v-model="assetForm.securityLevel" placeholder="请选择安全密级">
-              <el-option
-                v-for="item in allowedAssetSecurityOptions"
-                :key="item.value"
-                :label="item.label"
-                :value="item.value"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="外部引用 / Git URL">
-            <el-input
-              v-model="assetForm.filePath"
-              placeholder="请输入存储路径或代码仓库地址"
-            />
-          </el-form-item>
-          <el-form-item label="文件大小（字节）">
-            <el-input v-model="assetForm.fileSize" placeholder="可选" />
-          </el-form-item>
-          <el-form-item label="说明" class="asset-form__full">
-            <el-input
-              v-model="assetForm.description"
-              type="textarea"
-              :rows="4"
-              placeholder="补充该资产的简要说明"
-            />
-          </el-form-item>
-        </el-form>
-
-        <el-button type="primary" :loading="assetSubmitting" @click="handleCreateAsset">
-          创建资产
-        </el-button>
-      </template>
-    </el-card>
-
     <el-card v-if="project" shadow="never" class="table-card">
       <template #header>
         <div class="panel-card__header">
@@ -1108,20 +924,14 @@ watch(selectedPhase, () => {
   margin-bottom: 18px;
 }
 
-.member-form,
-.asset-form {
+.member-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
-.member-form :deep(.el-form-item),
-.asset-form :deep(.el-form-item) {
+.member-form :deep(.el-form-item) {
   margin-bottom: 0;
-}
-
-.asset-form__full {
-  grid-column: 1 / -1;
 }
 
 .member-form .el-button {
@@ -1152,13 +962,8 @@ watch(selectedPhase, () => {
 @media (max-width: 1180px) {
   .detail-summary,
   .detail-grid,
-  .member-form,
-  .asset-form {
+  .member-form {
     grid-template-columns: 1fr;
-  }
-
-  .asset-form__full {
-    grid-column: auto;
   }
 }
 

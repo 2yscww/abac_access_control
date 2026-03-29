@@ -3,6 +3,7 @@ package com.xie.platform.access.pdp;
 import com.xie.platform.access.action.Action;
 import com.xie.platform.access.environment.Environment;
 import com.xie.platform.access.policy.impl.AssetStageAccessPolicy;
+import com.xie.platform.access.policy.impl.AssetTypeOwnershipPolicy;
 import com.xie.platform.access.policy.impl.EnvironmentAccessPolicy;
 import com.xie.platform.access.policy.impl.HistoricalExportPolicy;
 import com.xie.platform.access.policy.impl.PhaseAccessPolicy;
@@ -15,6 +16,7 @@ import com.xie.platform.access.subject.Subject;
 import com.xie.platform.mapper.AuditLogMapper;
 import com.xie.platform.mapper.DepartmentMapper;
 import com.xie.platform.model.Department;
+import com.xie.platform.model.enumValue.AssetType;
 import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeLevel;
 import com.xie.platform.model.enumValue.ProjectPhase;
@@ -61,6 +63,7 @@ class AbacPolicyDecisionPointTest {
                 historicalExportPolicy,
                 new ProjectMembershipPolicy(projectMemberService),
                 new PhaseAccessPolicy(),
+                new AssetTypeOwnershipPolicy(),
                 new AssetStageAccessPolicy(),
                 new ProjectOwnerPhasePolicy(departmentMapper)
         );
@@ -131,6 +134,7 @@ class AbacPolicyDecisionPointTest {
                 .projectPhase(ProjectPhase.DEVELOPMENT)
                 .assetsStage(ProjectPhase.INIT)
                 .securityLevel(SecurityLevel.INTERNAL)
+                .assetType(AssetType.OPS_DOC)
                 .build();
 
         DecisionResult result = pdp.evaluate(subject, resource, Action.EXPORT, defaultEnv);
@@ -148,12 +152,31 @@ class AbacPolicyDecisionPointTest {
                 .projectPhase(ProjectPhase.DEVELOPMENT)
                 .assetsStage(ProjectPhase.INIT)
                 .securityLevel(SecurityLevel.INTERNAL)
+                .assetType(AssetType.SOURCE_CODE)
                 .build();
 
         DecisionResult result = pdp.evaluate(subject, resource, Action.READ, defaultEnv);
 
         assertFalse(result.isAllowed());
         assertEquals("AssetStageAccessPolicy", result.getTriggerPolicy());
+    }
+
+    @Test
+    void assetTypeOwnershipPolicy_shouldDenyRdWritingOpsDoc() {
+        Subject subject = new Subject(1L, 1L, DeptType.RD, 1L, EmployeeLevel.P6, false);
+        Resource resource = Resource.builder()
+                .type(ResourceType.ASSET)
+                .projectId(11L)
+                .projectPhase(ProjectPhase.DEVELOPMENT)
+                .assetsStage(ProjectPhase.DEVELOPMENT)
+                .securityLevel(SecurityLevel.INTERNAL)
+                .assetType(AssetType.OPS_DOC)
+                .build();
+
+        DecisionResult result = pdp.evaluate(subject, resource, Action.WRITE, defaultEnv);
+
+        assertFalse(result.isAllowed());
+        assertEquals("AssetTypeOwnershipPolicy", result.getTriggerPolicy());
     }
 
     @Test

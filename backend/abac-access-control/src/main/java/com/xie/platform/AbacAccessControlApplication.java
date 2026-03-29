@@ -16,15 +16,22 @@ public class AbacAccessControlApplication {
 
         // TODO 项目启动前，需要有一个临时接口去让DBA添加部分员工，让这些行政/管理/HR去把系统信息跑起来
 		
-		// TODO 项目中目前没有安全审计，没能闭环
 
-		// TODO 项目中还没有接入 minio
+
+
 
 		// TODO 管理员自定义策略参数还没有确认
 
-		// TODO 现在项目内应该给部门表添加负责人
+		// TODO 员工没法提出离职
 
-		// TODO 将项目成员组正式拉入业务流程中
+		// TODO 项目中上传资产时可以选择非本阶段
+
+		// TODO 下载和引用文件的方式不统一
+		
+
+
+
+
 
 		// 创建加密器
 		PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();

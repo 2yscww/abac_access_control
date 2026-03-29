@@ -1,4 +1,9 @@
-import { findOption, projectPhaseOptions, securityLevelOptions } from '@/constants/options'
+import {
+  assetTypeOptions,
+  findOption,
+  projectPhaseOptions,
+  securityLevelOptions,
+} from '@/constants/options'
 
 const FULL_ACCESS_DEPTS_BY_PHASE = {
   INIT: ['PRODUCT', 'MANAGEMENT'],
@@ -7,6 +12,15 @@ const FULL_ACCESS_DEPTS_BY_PHASE = {
   TEST: ['QA', 'RD'],
   RELEASE: ['OPS', 'RD'],
   ARCHIVED: [],
+}
+
+const ASSET_TYPE_OWNER_DEPTS = {
+  REQUIREMENT_DOC: ['PRODUCT'],
+  DESIGN_DOC: ['RD'],
+  SOURCE_CODE: ['RD'],
+  TEST_REPORT: ['QA'],
+  DEPLOY_SCRIPT: ['OPS'],
+  OPS_DOC: ['OPS'],
 }
 
 function createDefaultPolicyConfigSnapshot() {
@@ -39,6 +53,10 @@ function getPhaseKey(rawPhase) {
 
 function getSecurityKey(rawSecurityLevel) {
   return findOption(securityLevelOptions, rawSecurityLevel)?.key || ''
+}
+
+function getAssetTypeKey(rawAssetType) {
+  return findOption(assetTypeOptions, rawAssetType)?.key || ''
 }
 
 function getSecurityPolicyConfig() {
@@ -240,6 +258,7 @@ function hasExportMembership(
 export function canCreateAsset(
   profile,
   project,
+  rawAssetType,
   rawAssetStage,
   rawSecurityLevel,
   options = {},
@@ -247,6 +266,7 @@ export function canCreateAsset(
   return (
     hasMutationMembership(project, options) &&
     hasPhaseActionAccess(profile, project?.projectPhase, 'WRITE') &&
+    hasAssetTypeWriteAccess(profile, rawAssetType) &&
     hasPhaseActionAccess(profile, rawAssetStage, 'WRITE') &&
     hasSecurityClearance(profile, rawSecurityLevel)
   )
@@ -309,8 +329,25 @@ export function getAllowedSecurityLevelOptions(profile) {
   )
 }
 
+export function hasAssetTypeWriteAccess(profile, rawAssetType) {
+  const deptType = profile?.deptType || ''
+  const assetTypeKey = getAssetTypeKey(rawAssetType)
+  if (!deptType || !assetTypeKey) {
+    return false
+  }
+
+  const allowedDeptTypes = ASSET_TYPE_OWNER_DEPTS[assetTypeKey] || []
+  return allowedDeptTypes.includes(deptType)
+}
+
+export function getAllowedAssetTypeOptions(profile) {
+  return assetTypeOptions.filter((option) =>
+    hasAssetTypeWriteAccess(profile, option.value),
+  )
+}
+
 export function getAllowedAssetStageOptions(profile, rawProjectPhase) {
-  const currentProjectPhase = Number(rawProjectPhase || 0)
+  const currentProjectPhase = findOption(projectPhaseOptions, rawProjectPhase)?.value || 0
 
   return projectPhaseOptions.filter(
     (option) =>

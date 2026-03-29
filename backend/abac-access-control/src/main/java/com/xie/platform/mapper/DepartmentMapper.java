@@ -13,6 +13,8 @@ public interface DepartmentMapper {
 
     Department selectById(@Param("deptId") Long deptId);
 
+    List<Department> selectAll();
+
     int updateManagerId(@Param("deptId") Long deptId, @Param("managerId") Long managerId);
 
     List<Department> selectByManagerId(@Param("managerId") Long managerId);

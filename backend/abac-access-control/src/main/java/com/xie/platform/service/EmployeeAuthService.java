@@ -2,6 +2,8 @@ package com.xie.platform.service;
 
 import com.xie.platform.dto.CreateEmployeeDTO;
 import com.xie.platform.dto.EmployeeActiveQueryDTO;
+import com.xie.platform.dto.EmployeeOnboardOptionsDTO;
+import com.xie.platform.dto.EmployeeOnboardResultDTO;
 import com.xie.platform.dto.EmployeeOptionDTO;
 import com.xie.platform.dto.EmployeeProfileDTO;
 import com.xie.platform.dto.OffboardEmployeeDTO;
@@ -15,7 +17,9 @@ public interface EmployeeAuthService {
 
     String changePassword(String tempToken, String oldPassword, String newPassword);
 
-    void createEmployee(CreateEmployeeDTO dto, Long operatorEmployeeId);
+    EmployeeOnboardResultDTO createEmployee(CreateEmployeeDTO dto, Long operatorEmployeeId);
+
+    EmployeeOnboardOptionsDTO getEmployeeOnboardOptions(Long operatorEmployeeId);
 
     void offboardEmployee(OffboardEmployeeDTO dto, Long operatorEmployeeId);
 

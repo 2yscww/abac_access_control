@@ -19,6 +19,8 @@ const actionOptions = [
   { value: 'EXPORT', label: '导出引用' },
 ]
 
+actionOptions.splice(4, 0, { value: 'ONBOARD_EMPLOYEE', label: '员工入职' })
+
 const decisionOptions = [
   { value: 'ALLOW', label: '允许' },
   { value: 'DENY', label: '拒绝' },
@@ -55,7 +57,9 @@ const allowCount = computed(() => logs.value.filter((item) => item.decision === 
 const handoverEventCount = computed(
   () =>
     logs.value.filter((item) =>
-      ['OFFBOARD_EMPLOYEE', 'ASSIGN_DEPARTMENT_MANAGER'].includes(item.action),
+      ['ONBOARD_EMPLOYEE', 'OFFBOARD_EMPLOYEE', 'ASSIGN_DEPARTMENT_MANAGER'].includes(
+        item.action,
+      ),
     ).length,
 )
 

@@ -4,6 +4,8 @@ import com.xie.platform.common.Response;
 import com.xie.platform.dto.ChangePasswdDTO;
 import com.xie.platform.dto.CreateEmployeeDTO;
 import com.xie.platform.dto.EmployeeActiveQueryDTO;
+import com.xie.platform.dto.EmployeeOnboardOptionsDTO;
+import com.xie.platform.dto.EmployeeOnboardResultDTO;
 import com.xie.platform.dto.EmployeeLoginDTO;
 import com.xie.platform.dto.EmployeeOptionDTO;
 import com.xie.platform.dto.EmployeeProfileDTO;
@@ -83,16 +85,23 @@ public class EmployeeAuthController {
     }
 
     @PostMapping("/create")
-    public Response<Void> createEmployee(@RequestBody CreateEmployeeDTO dto) {
+    public Response<EmployeeOnboardResultDTO> createEmployee(@RequestBody CreateEmployeeDTO dto) {
         Long operatorEmployeeId = CurrentUserContext.getRequiredEmployeeId();
-        employeeAuthService.createEmployee(dto, operatorEmployeeId);
-        return Response.Success(null, null);
+        EmployeeOnboardResultDTO result = employeeAuthService.createEmployee(dto, operatorEmployeeId);
+        return Response.Success(result, "员工入职创建成功");
     }
 
     @GetMapping("/active-list")
     public Response<List<EmployeeOptionDTO>> queryActiveEmployees(EmployeeActiveQueryDTO query) {
         Long operatorEmployeeId = CurrentUserContext.getRequiredEmployeeId();
         List<EmployeeOptionDTO> result = employeeAuthService.queryActiveEmployees(query, operatorEmployeeId);
+        return Response.Success(result, null);
+    }
+
+    @GetMapping("/onboard-options")
+    public Response<EmployeeOnboardOptionsDTO> getEmployeeOnboardOptions() {
+        Long operatorEmployeeId = CurrentUserContext.getRequiredEmployeeId();
+        EmployeeOnboardOptionsDTO result = employeeAuthService.getEmployeeOnboardOptions(operatorEmployeeId);
         return Response.Success(result, null);
     }
 

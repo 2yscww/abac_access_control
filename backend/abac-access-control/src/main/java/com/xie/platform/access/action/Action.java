@@ -21,6 +21,9 @@ public enum Action {
     /** HR 发起员工离职 */
     OFFBOARD_EMPLOYEE,
 
+    /** HR 办理员工入职 */
+    ONBOARD_EMPLOYEE,
+
     /** 登录 */
     LOGIN,
 

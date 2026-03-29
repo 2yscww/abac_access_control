@@ -8,14 +8,45 @@ import {
   queryManagerCandidates,
   queryManagerHandoverTodos,
 } from '@/api/department'
-import { offboardEmployee, queryActiveEmployees } from '@/api/employee'
+import {
+  createEmployee,
+  getEmployeeOnboardOptions,
+  offboardEmployee,
+  queryActiveEmployees,
+} from '@/api/employee'
 import { getOptionLabel, projectPhaseOptions } from '@/constants/options'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
 
+const employeeLevelOptions = [
+  { value: 1, label: 'P1' },
+  { value: 2, label: 'P2' },
+  { value: 3, label: 'P3' },
+  { value: 4, label: 'P4' },
+  { value: 5, label: 'P5' },
+  { value: 6, label: 'P6' },
+  { value: 7, label: 'P7' },
+  { value: 8, label: 'P8' },
+  { value: 9, label: 'VP' },
+  { value: 10, label: 'DIRECTOR' },
+]
+
+const contractorOptions = [
+  { value: false, label: '正式员工' },
+  { value: true, label: '外包' },
+]
+
 const employeeQuery = reactive({
   keyword: '',
+})
+
+const onboardForm = reactive({
+  employeeName: '',
+  deptId: null,
+  branchId: null,
+  level: 4,
+  isContractor: false,
 })
 
 const assignForm = reactive({
@@ -27,6 +58,12 @@ const employees = ref([])
 const employeeLoading = ref(false)
 const employeeError = ref('')
 const employeeQueried = ref(false)
+const onboardSubmitting = ref(false)
+const onboardOptionsLoading = ref(false)
+const onboardOptionsError = ref('')
+const departmentOptions = ref([])
+const branchOptions = ref([])
+const createdEmployee = ref(null)
 
 const todos = ref([])
 const todoLoading = ref(false)
@@ -37,9 +74,12 @@ const candidatesLoading = ref(false)
 const assignSubmitting = ref(false)
 const assignDialogVisible = ref(false)
 const currentTodo = ref(null)
+const canOnboard = computed(() => authStore.hasCapability('handover.onboard'))
 const canOffboard = computed(() => authStore.hasCapability('handover.offboard'))
 const canAssign = computed(() => authStore.hasCapability('handover.assign'))
-const refreshLoading = computed(() => todoLoading.value || employeeLoading.value)
+const refreshLoading = computed(
+  () => todoLoading.value || employeeLoading.value || onboardOptionsLoading.value,
+)
 
 const orderedTodos = computed(() =>
   [...todos.value].sort(
@@ -136,6 +176,43 @@ function buildCandidateLabel(candidate) {
   return `${candidate.employeeCode || '-'} / ${candidate.employeeName || '-'}`
 }
 
+function resetOnboardForm({ preserveOptions = true } = {}) {
+  onboardForm.employeeName = ''
+  onboardForm.deptId = null
+  onboardForm.branchId = branchOptions.value[0]?.branchId ?? null
+  onboardForm.level = 4
+  onboardForm.isContractor = false
+
+  if (!preserveOptions) {
+    departmentOptions.value = []
+    branchOptions.value = []
+  }
+}
+
+async function loadOnboardOptions() {
+  if (!canOnboard.value) {
+    onboardOptionsError.value = ''
+    resetOnboardForm({ preserveOptions: false })
+    return
+  }
+
+  onboardOptionsLoading.value = true
+  onboardOptionsError.value = ''
+
+  try {
+    const result = await getEmployeeOnboardOptions()
+    departmentOptions.value = result?.departments || []
+    branchOptions.value = result?.branches || []
+    onboardForm.branchId = onboardForm.branchId || branchOptions.value[0]?.branchId || null
+  } catch (error) {
+    onboardOptionsError.value = error.message
+    departmentOptions.value = []
+    branchOptions.value = []
+  } finally {
+    onboardOptionsLoading.value = false
+  }
+}
+
 async function loadTodos() {
   if (!canAssign.value) {
     todos.value = []
@@ -153,6 +230,45 @@ async function loadTodos() {
     todos.value = []
   } finally {
     todoLoading.value = false
+  }
+}
+
+async function handleCreateEmployee() {
+  if (!canOnboard.value) {
+    ElMessage.warning('当前账号不能办理员工入职')
+    return
+  }
+
+  if (!onboardForm.employeeName.trim()) {
+    ElMessage.warning('请输入员工姓名')
+    return
+  }
+
+  if (!onboardForm.deptId || !onboardForm.branchId || !onboardForm.level) {
+    ElMessage.warning('请完整填写部门、分公司和职级')
+    return
+  }
+
+  onboardSubmitting.value = true
+
+  try {
+    createdEmployee.value = await createEmployee({
+      employeeName: onboardForm.employeeName.trim(),
+      deptId: Number(onboardForm.deptId),
+      branchId: Number(onboardForm.branchId),
+      level: Number(onboardForm.level),
+      isContractor: Boolean(onboardForm.isContractor),
+    })
+    ElMessage.success('员工入职创建成功')
+    resetOnboardForm()
+
+    if (canOffboard.value && employeeQueried.value) {
+      await searchEmployees()
+    }
+  } catch (error) {
+    ElMessage.error(error.message)
+  } finally {
+    onboardSubmitting.value = false
   }
 }
 
@@ -265,6 +381,9 @@ async function submitAssignment() {
 
 async function refreshWorkbench() {
   const tasks = []
+  if (canOnboard.value) {
+    tasks.push(loadOnboardOptions())
+  }
   if (canAssign.value) {
     tasks.push(loadTodos())
   }
@@ -278,6 +397,9 @@ async function refreshWorkbench() {
 }
 
 onMounted(() => {
+  if (canOnboard.value) {
+    loadOnboardOptions()
+  }
   if (canAssign.value) {
     loadTodos()
   }
@@ -321,6 +443,126 @@ onMounted(() => {
         </span>
       </el-card>
     </section>
+
+    <el-card v-if="canOnboard" v-loading="onboardOptionsLoading" shadow="never" class="panel-card">
+      <template #header>
+        <div class="card-header">
+          <div>
+            <h3>HR 入职办理</h3>
+            <p>创建员工档案后，系统会自动生成员工工号，并要求员工首次登录时修改默认密码。</p>
+          </div>
+        </div>
+      </template>
+
+      <el-alert
+        title="入职由 HR 发起，部门、分公司和职级由表单显式指定；生成后的工号和初始口令会直接回显。"
+        type="info"
+        show-icon
+        :closable="false"
+        class="block-alert"
+      />
+
+      <el-alert
+        v-if="onboardOptionsError"
+        :title="onboardOptionsError"
+        type="warning"
+        show-icon
+        :closable="false"
+        class="block-alert"
+      />
+
+      <template v-else>
+        <el-form label-position="top" class="onboard-form">
+          <el-form-item label="员工姓名">
+            <el-input
+              v-model="onboardForm.employeeName"
+              placeholder="请输入新员工姓名"
+              maxlength="32"
+              show-word-limit
+            />
+          </el-form-item>
+          <el-form-item label="所属部门">
+            <el-select v-model="onboardForm.deptId" filterable placeholder="请选择部门">
+              <el-option
+                v-for="item in departmentOptions"
+                :key="item.deptId"
+                :label="`${item.deptName} (${item.deptTypeDesc || item.deptType || '-'})`"
+                :value="item.deptId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="所属分公司">
+            <el-select v-model="onboardForm.branchId" filterable placeholder="请选择分公司">
+              <el-option
+                v-for="item in branchOptions"
+                :key="item.branchId"
+                :label="item.branchName"
+                :value="item.branchId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="员工职级">
+            <el-select v-model="onboardForm.level" placeholder="请选择职级">
+              <el-option
+                v-for="item in employeeLevelOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="人员身份" class="onboard-form__full">
+            <el-select v-model="onboardForm.isContractor" placeholder="请选择人员身份">
+              <el-option
+                v-for="item in contractorOptions"
+                :key="String(item.value)"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+
+        <div class="onboard-actions">
+          <el-button type="primary" :loading="onboardSubmitting" @click="handleCreateEmployee">
+            办理入职
+          </el-button>
+          <el-button @click="resetOnboardForm">重置表单</el-button>
+        </div>
+
+        <el-descriptions
+          v-if="createdEmployee"
+          :column="2"
+          border
+          class="created-employee-card"
+        >
+          <el-descriptions-item label="员工工号">
+            {{ createdEmployee.employeeCode || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="员工姓名">
+            {{ createdEmployee.employeeName || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="所属部门">
+            {{ createdEmployee.deptName || createdEmployee.deptId || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="所属分公司">
+            {{ createdEmployee.branchName || createdEmployee.branchId || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="员工职级">
+            {{ createdEmployee.level || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="人员身份">
+            {{ createdEmployee.isContractor ? '外包' : '正式员工' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="初始密码">
+            {{ createdEmployee.initialPassword || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="首次登录改密">
+            {{ createdEmployee.mustChangePassword ? '是' : '否' }}
+          </el-descriptions-item>
+        </el-descriptions>
+      </template>
+    </el-card>
 
     <section class="handover-grid">
       <el-card v-if="canAssign" shadow="never" class="chart-card">
@@ -618,6 +860,27 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
+.onboard-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.onboard-form__full {
+  grid-column: 1 / -1;
+}
+
+.onboard-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.created-employee-card {
+  margin-top: 8px;
+}
+
 .block-alert {
   margin-bottom: 16px;
 }
@@ -658,8 +921,13 @@ onMounted(() => {
 
 @media (max-width: 1200px) {
   .handover-grid,
-  .handover-summary {
+  .handover-summary,
+  .onboard-form {
     grid-template-columns: 1fr;
+  }
+
+  .onboard-form__full {
+    grid-column: auto;
   }
 }
 

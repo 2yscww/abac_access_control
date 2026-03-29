@@ -1,5 +1,6 @@
 package com.xie.platform.access.resource;
 
+import com.xie.platform.model.enumValue.AssetType;
 import com.xie.platform.model.enumValue.ProjectPhase;
 import com.xie.platform.model.enumValue.SecurityLevel;
 import lombok.Builder;
@@ -51,6 +52,12 @@ public class Resource {
      * 用于判断主体的职级是否有权访问该密级的资源
      */
     private SecurityLevel securityLevel;
+
+    /**
+     * 资产类型
+     * 仅对 ASSET 资源有意义，用于判断某类资产是否属于当前部门职责范围。
+     */
+    private AssetType assetType;
 
     /**
      * 资源创建人的 employeeId

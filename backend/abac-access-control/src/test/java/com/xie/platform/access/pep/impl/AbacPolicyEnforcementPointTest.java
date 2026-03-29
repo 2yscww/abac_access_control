@@ -13,6 +13,7 @@ import com.xie.platform.mapper.ProjectMapper;
 import com.xie.platform.model.Department;
 import com.xie.platform.model.Employees;
 import com.xie.platform.model.ProjectAssets;
+import com.xie.platform.model.enumValue.AssetType;
 import com.xie.platform.model.Projects;
 import com.xie.platform.model.enumValue.DeptType;
 import com.xie.platform.model.enumValue.EmployeeLevel;
@@ -111,6 +112,7 @@ class AbacPolicyEnforcementPointTest {
         ProjectAssets asset = new ProjectAssets();
         asset.setAssetId(20L);
         asset.setProjectId(11L);
+        asset.setAssetsType(AssetType.SOURCE_CODE);
         asset.setAssetsStage(ProjectPhase.DEVELOPMENT);
         asset.setSecurityLevel(SecurityLevel.INTERNAL);
         asset.setCreatedByEmployeeId(7L);
@@ -142,6 +144,7 @@ class AbacPolicyEnforcementPointTest {
         assertEquals(20L, resource.getResourceId());
         assertEquals(11L, resource.getProjectId());
         assertEquals(ProjectPhase.DEVELOPMENT, resource.getAssetsStage());
+        assertEquals(AssetType.SOURCE_CODE, resource.getAssetType());
 
         DecisionResult decision = decisionCaptor.getValue();
         assertFalse(decision.isAllowed());
@@ -156,6 +159,7 @@ class AbacPolicyEnforcementPointTest {
         ProjectAssets asset = new ProjectAssets();
         asset.setAssetId(20L);
         asset.setProjectId(11L);
+        asset.setAssetsType(AssetType.SOURCE_CODE);
         asset.setAssetsStage(ProjectPhase.DEVELOPMENT);
         asset.setSecurityLevel(SecurityLevel.INTERNAL);
         asset.setCreatedByEmployeeId(7L);
@@ -184,6 +188,7 @@ class AbacPolicyEnforcementPointTest {
         ProjectAssets asset = new ProjectAssets();
         asset.setAssetId(20L);
         asset.setProjectId(11L);
+        asset.setAssetsType(AssetType.SOURCE_CODE);
         asset.setAssetsStage(ProjectPhase.DEVELOPMENT);
         asset.setSecurityLevel(SecurityLevel.INTERNAL);
         asset.setCreatedByEmployeeId(7L);

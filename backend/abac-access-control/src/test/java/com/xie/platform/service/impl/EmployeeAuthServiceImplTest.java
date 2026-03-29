@@ -2,6 +2,8 @@ package com.xie.platform.service.impl;
 
 import com.xie.platform.access.action.Action;
 import com.xie.platform.dto.CreateEmployeeDTO;
+import com.xie.platform.dto.EmployeeOnboardOptionsDTO;
+import com.xie.platform.dto.EmployeeOnboardResultDTO;
 import com.xie.platform.dto.EmployeeProfileDTO;
 import com.xie.platform.dto.OffboardEmployeeDTO;
 import com.xie.platform.exception.BizException;
@@ -201,10 +203,12 @@ class EmployeeAuthServiceImplTest {
 
         Department targetDept = new Department();
         targetDept.setDeptId(dto.getDeptId());
+        targetDept.setDeptName("研发部");
         targetDept.setDeptType(DeptType.RD);
 
         Branch branch = new Branch();
         branch.setBranchId(dto.getBranchId());
+        branch.setBranchName("上海分公司");
 
         when(employeesMapper.selectByEmployeeId(10L)).thenReturn(operator);
         when(departmentMapper.selectById(1L)).thenReturn(operatorDept);
@@ -217,12 +221,19 @@ class EmployeeAuthServiceImplTest {
             return 1;
         }).when(employeesMapper).insert(any(Employees.class));
 
-        employeeAuthService.createEmployee(dto, 10L);
+        EmployeeOnboardResultDTO result = employeeAuthService.createEmployee(dto, 10L);
 
         ArgumentCaptor<Employees> employeeCaptor = ArgumentCaptor.forClass(Employees.class);
         verify(employeesMapper).insert(employeeCaptor.capture());
         verify(employeesMapper).updateEmployeeCode(5L, "1005");
         verify(passwordEncoder).encode("ABACtest");
+        verify(auditLogService).recordBusinessEvent(
+                eq(10L),
+                eq("EMPLOYEE"),
+                eq(5L),
+                eq(Action.ONBOARD_EMPLOYEE),
+                any(Map.class)
+        );
 
         Employees createdEmployee = employeeCaptor.getValue();
         assertEquals("PENDING", createdEmployee.getEmployeeCode());
@@ -234,6 +245,50 @@ class EmployeeAuthServiceImplTest {
         assertEquals(EmployeeStatus.ACTIVE, createdEmployee.getStatus());
         assertEquals("ENCODED_DEFAULT_PASSWORD", createdEmployee.getPassword());
         assertTrue(createdEmployee.getMustChangePassword());
+
+        assertEquals(5L, result.getEmployeeId());
+        assertEquals("1005", result.getEmployeeCode());
+        assertEquals("Alice", result.getEmployeeName());
+        assertEquals(2L, result.getDeptId());
+        assertEquals("研发部", result.getDeptName());
+        assertEquals(3L, result.getBranchId());
+        assertEquals("上海分公司", result.getBranchName());
+        assertEquals("P4", result.getLevel());
+        assertEquals(4, result.getLevelRank());
+        assertEquals("ABACtest", result.getInitialPassword());
+        assertTrue(result.getMustChangePassword());
+    }
+
+    @Test
+    void getEmployeeOnboardOptions_shouldReturnDepartmentAndBranchOptionsForHr() {
+        Employees operator = buildOperator(10L, 1L, EmployeeStatus.ACTIVE);
+        Department operatorDept = new Department();
+        operatorDept.setDeptId(1L);
+        operatorDept.setDeptType(DeptType.HR);
+
+        Department department = new Department();
+        department.setDeptId(2L);
+        department.setDeptName("研发部");
+        department.setDeptType(DeptType.RD);
+
+        Branch branch = new Branch();
+        branch.setBranchId(3L);
+        branch.setBranchName("上海分公司");
+
+        when(employeesMapper.selectByEmployeeId(10L)).thenReturn(operator);
+        when(departmentMapper.selectById(1L)).thenReturn(operatorDept);
+        when(departmentMapper.selectAll()).thenReturn(List.of(department));
+        when(branchMapper.selectAll()).thenReturn(List.of(branch));
+
+        EmployeeOnboardOptionsDTO result = employeeAuthService.getEmployeeOnboardOptions(10L);
+
+        assertEquals(1, result.getDepartments().size());
+        assertEquals(2L, result.getDepartments().get(0).getDeptId());
+        assertEquals("研发部", result.getDepartments().get(0).getDeptName());
+        assertEquals("RD", result.getDepartments().get(0).getDeptType());
+        assertEquals(1, result.getBranches().size());
+        assertEquals(3L, result.getBranches().get(0).getBranchId());
+        assertEquals("上海分公司", result.getBranches().get(0).getBranchName());
     }
 
     @Test
@@ -358,6 +413,7 @@ class EmployeeAuthServiceImplTest {
                         "files.upload",
                         "files.download",
                         "handover.view",
+                        "handover.onboard",
                         "handover.offboard"
                 ),
                 profile.getCapabilities()

@@ -179,9 +179,6 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
         if (dto.getAssetsType() == null) {
             throw new BizException("资产类型不能为空");
         }
-        if (dto.getAssetsStage() == null) {
-            throw new BizException("资产产生阶段不能为空");
-        }
         if (dto.getSecurityLevel() == null) {
             throw new BizException("资产密级不能为空");
         }
@@ -198,15 +195,9 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
             throw new BizException("非法的资产类型");
         }
 
-        ProjectPhase assetsStage;
-        try {
-            assetsStage = ProjectPhase.fromCode(dto.getAssetsStage());
-        } catch (IllegalArgumentException exception) {
-            throw new BizException("非法的资产产生阶段");
-        }
-
-        if (assetsStage.getCode() > project.getProjectPhase().getCode()) {
-            throw new BizException("资产产生阶段不能晚于当前项目阶段");
+        ProjectPhase assetsStage = project.getProjectPhase();
+        if (assetsStage == null) {
+            throw new BizException("项目当前阶段不能为空");
         }
 
         SecurityLevel securityLevel;
@@ -224,6 +215,7 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
                         .projectPhase(project.getProjectPhase())
                         .assetsStage(assetsStage)
                         .securityLevel(securityLevel)
+                        .assetType(assetType)
                         .creatorId(creatorEmployeeId)
                         .build(),
                 Action.WRITE
@@ -247,7 +239,6 @@ public class ProjectAssetsServiceImpl implements ProjectAssetsService {
         createAssetDTO.setProjectId(dto.getProjectId());
         createAssetDTO.setAssetName(dto.getAssetName());
         createAssetDTO.setAssetsType(dto.getAssetsType());
-        createAssetDTO.setAssetsStage(dto.getAssetsStage());
         createAssetDTO.setSecurityLevel(dto.getSecurityLevel());
         createAssetDTO.setDescription(dto.getDescription());
         return createAssetDTO;

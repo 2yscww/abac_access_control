@@ -180,6 +180,7 @@ public class AbacPolicyEnforcementPoint implements PolicyEnforcementPoint {
                 .projectPhase(project.getProjectPhase())
                 .assetsStage(asset.getAssetsStage())
                 .securityLevel(asset.getSecurityLevel())
+                .assetType(asset.getAssetsType())
                 .creatorId(asset.getCreatedByEmployeeId())
                 .ownerId(project.getOwnerId())
                 .deptId(null)

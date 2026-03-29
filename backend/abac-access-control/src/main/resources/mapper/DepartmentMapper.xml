@@ -15,6 +15,16 @@
         WHERE dept_id = #{deptId}
     </select>
 
+    <select id="selectAll" resultType="com.xie.platform.model.Department">
+        SELECT
+            dept_id,
+            dept_name,
+            dept_type,
+            manager_id
+        FROM departments
+        ORDER BY dept_id
+    </select>
+
     <update id="updateManagerId">
         UPDATE departments
         SET manager_id = #{managerId}

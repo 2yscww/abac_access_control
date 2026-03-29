@@ -1,11 +1,13 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import InsightChart from '@/components/InsightChart.vue'
 import { exportAssetReference, queryAssets, uploadAsset } from '@/api/asset'
+import { getProject } from '@/api/project'
 import { assetTypeOptions, getOptionLabel, projectPhaseOptions, securityLevelOptions } from '@/constants/options'
 import { useAuthStore } from '@/stores/auth'
+import { getAllowedAssetTypeOptions } from '@/utils/accessControl'
 
 const authStore = useAuthStore()
 
@@ -13,7 +15,6 @@ const uploadForm = reactive({
   projectId: '',
   assetName: '',
   assetsType: 1,
-  assetsStage: 1,
   securityLevel: 2,
   description: '',
 })
@@ -25,6 +26,8 @@ const uploadSubmitting = ref(false)
 const myUploads = ref([])
 const downloadableAssets = ref([])
 const downloadingAssetIds = reactive({})
+const syncedProjectId = ref(null)
+const resolvedProjectPhase = ref(null)
 
 const draftCount = computed(() => myUploads.value.length)
 const downloadCount = computed(() => downloadableAssets.value.length)
@@ -36,6 +39,19 @@ const downloadCapabilityLabel = computed(() =>
 )
 const selectedFileName = computed(() => selectedFile.value?.name || '')
 const selectedFileSize = computed(() => formatBytes(selectedFile.value?.size))
+const resolvedProjectPhaseLabel = computed(() => {
+  if (resolvedProjectPhase.value == null) {
+    return '根据项目当前阶段自动确定'
+  }
+
+  return getOptionLabel(projectPhaseOptions, resolvedProjectPhase.value)
+})
+const allowedUploadAssetTypeOptions = computed(() =>
+  getAllowedAssetTypeOptions(authStore.profile),
+)
+const hasAllowedUploadAssetType = computed(
+  () => allowedUploadAssetTypeOptions.value.length > 0,
+)
 
 const chartOption = computed(() => ({
   backgroundColor: 'transparent',
@@ -119,15 +135,28 @@ function formatBytes(value) {
 function resetUploadForm() {
   uploadForm.projectId = ''
   uploadForm.assetName = ''
-  uploadForm.assetsType = 1
-  uploadForm.assetsStage = 1
+  uploadForm.assetsType = allowedUploadAssetTypeOptions.value[0]?.value ?? null
   uploadForm.securityLevel = 2
   uploadForm.description = ''
   selectedFile.value = null
+  syncedProjectId.value = null
+  resolvedProjectPhase.value = null
 
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
   }
+}
+
+function syncUploadAssetTypeSelection() {
+  if (
+    allowedUploadAssetTypeOptions.value.some(
+      (option) => option.value === uploadForm.assetsType,
+    )
+  ) {
+    return
+  }
+
+  uploadForm.assetsType = allowedUploadAssetTypeOptions.value[0]?.value ?? null
 }
 
 function handleFileChange(event) {
@@ -137,6 +166,34 @@ function handleFileChange(event) {
   if (file && !uploadForm.assetName) {
     uploadForm.assetName = file.name
   }
+}
+
+async function handleProjectIdChange() {
+  resolvedProjectPhase.value = null
+  syncedProjectId.value = null
+
+  try {
+    await syncAssetStageWithProject()
+  } catch {
+    // Surface project lookup failures during the actual upload action instead.
+  }
+}
+
+async function syncAssetStageWithProject() {
+  const projectId = Number(uploadForm.projectId)
+  if (!Number.isFinite(projectId) || projectId <= 0) {
+    resolvedProjectPhase.value = null
+    return
+  }
+  if (syncedProjectId.value === projectId) {
+    return
+  }
+
+  const project = await getProject(projectId)
+  const matchedPhase = projectPhaseOptions.find((item) => item.key === project?.projectPhase)
+
+  resolvedProjectPhase.value = matchedPhase?.value ?? null
+  syncedProjectId.value = projectId
 }
 
 async function loadFileCenterData() {
@@ -172,6 +229,10 @@ async function handleUpload() {
     ElMessage.warning('当前账号没有文件上传能力')
     return
   }
+  if (!hasAllowedUploadAssetType.value || !uploadForm.assetsType) {
+    ElMessage.warning('当前账号按部门职责没有可创建的资产类型')
+    return
+  }
   if (!uploadForm.projectId || !uploadForm.assetName) {
     ElMessage.warning('请先填写项目 ID 和文件名称')
     return
@@ -184,12 +245,13 @@ async function handleUpload() {
   uploadSubmitting.value = true
 
   try {
+    await syncAssetStageWithProject()
+
     await uploadAsset(
       {
         projectId: Number(uploadForm.projectId),
         assetName: uploadForm.assetName,
         assetsType: uploadForm.assetsType,
-        assetsStage: uploadForm.assetsStage,
         securityLevel: uploadForm.securityLevel,
         description: uploadForm.description,
       },
@@ -232,6 +294,8 @@ async function handleDownload(asset) {
 }
 
 onMounted(loadFileCenterData)
+
+watch(allowedUploadAssetTypeOptions, syncUploadAssetTypeSelection, { immediate: true })
 </script>
 
 <template>
@@ -246,7 +310,7 @@ onMounted(loadFileCenterData)
         </p>
       </div>
       <el-alert
-        title="项目详情页仍可保留外部地址 / Git URL 建档；这里负责真实文件上传与受控下载。"
+        title="资产创建入口统一收口到文件中心，创建阶段由项目当前阶段自动决定。"
         type="info"
         :closable="false"
         show-icon
@@ -284,16 +348,27 @@ onMounted(loadFileCenterData)
         </template>
 
         <el-form label-position="top" class="upload-form">
+          <el-alert
+            v-if="!hasAllowedUploadAssetType"
+            title="当前账号按部门职责没有可创建的资产类型。管理层仍可继续使用全阶段下载能力。"
+            type="info"
+            show-icon
+            :closable="false"
+          />
           <el-form-item label="项目 ID">
-            <el-input v-model="uploadForm.projectId" placeholder="请输入项目 ID" />
+            <el-input
+              v-model="uploadForm.projectId"
+              placeholder="请输入项目 ID"
+              @change="handleProjectIdChange"
+            />
           </el-form-item>
           <el-form-item label="文件名称">
             <el-input v-model="uploadForm.assetName" placeholder="请输入文件名称" />
           </el-form-item>
           <el-form-item label="资产类型">
-            <el-select v-model="uploadForm.assetsType">
+            <el-select v-model="uploadForm.assetsType" :disabled="!hasAllowedUploadAssetType">
               <el-option
-                v-for="item in assetTypeOptions"
+                v-for="item in allowedUploadAssetTypeOptions"
                 :key="item.value"
                 :label="item.label"
                 :value="item.value"
@@ -301,14 +376,7 @@ onMounted(loadFileCenterData)
             </el-select>
           </el-form-item>
           <el-form-item label="所属阶段">
-            <el-select v-model="uploadForm.assetsStage">
-              <el-option
-                v-for="item in projectPhaseOptions"
-                :key="item.value"
-                :label="item.label"
-                :value="item.value"
-              />
-            </el-select>
+            <el-input :model-value="resolvedProjectPhaseLabel" readonly />
           </el-form-item>
           <el-form-item label="文件密级">
             <el-select v-model="uploadForm.securityLevel">
@@ -340,7 +408,12 @@ onMounted(loadFileCenterData)
         </el-form>
 
         <div class="upload-form__actions">
-          <el-button type="primary" :loading="uploadSubmitting" @click="handleUpload">
+          <el-button
+            type="primary"
+            :loading="uploadSubmitting"
+            :disabled="!hasAllowedUploadAssetType"
+            @click="handleUpload"
+          >
             上传到 MinIO
           </el-button>
           <el-button @click="resetUploadForm">重置</el-button>

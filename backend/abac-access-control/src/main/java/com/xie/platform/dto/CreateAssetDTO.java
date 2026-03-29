@@ -17,9 +17,6 @@ public class CreateAssetDTO {
     /** 资产类型（1-6） */
     private Integer assetsType;
 
-    /** 资产产生阶段（1-6） */
-    private Integer assetsStage;
-
     /** 资产密级（1-4） */
     private Integer securityLevel;
 
