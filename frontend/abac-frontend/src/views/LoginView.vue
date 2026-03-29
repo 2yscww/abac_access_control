@@ -3,7 +3,6 @@ import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { changePassword, login } from '@/api/auth'
-import InsightChart from '@/components/InsightChart.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -24,67 +23,21 @@ const errorMessage = ref('')
 const successMessage = ref('')
 const mode = ref(authStore.tempToken ? 'change-password' : 'login')
 
-const chartOption = computed(() => ({
-  backgroundColor: 'transparent',
-  tooltip: {
-    trigger: 'axis',
-    axisPointer: {
-      type: 'shadow',
-    },
-  },
-  grid: {
-    top: 16,
-    right: 12,
-    bottom: 24,
-    left: 28,
-  },
-  xAxis: {
-    type: 'category',
-    data: ['主体身份', '资源密级', '项目阶段', '环境约束', '审计留痕'],
-    axisTick: {
-      show: false,
-    },
-    axisLine: {
-      lineStyle: {
-        color: '#dcdfe6',
-      },
-    },
-    axisLabel: {
-      color: '#606266',
-      interval: 0,
-    },
-  },
-  yAxis: {
-    type: 'value',
-    max: 100,
-    axisLabel: {
-      color: '#909399',
-    },
-    splitLine: {
-      lineStyle: {
-        color: '#ebeef5',
-      },
-    },
-  },
-  series: [
-    {
-      type: 'bar',
-      barWidth: 26,
-      data: [92, 88, 90, 84, 96],
-      itemStyle: {
-        color: '#409eff',
-        borderRadius: [4, 4, 0, 0],
-      },
-    },
-  ],
-}))
+const systemTitle = '企业敏感文档访问控制与安全审计系统'
+const systemSummary =
+  '面向多项目协作场景，统一管理文档访问、下载审计和阶段流转约束。'
+const featureList = [
+  '基于员工属性、项目阶段、资产类型和密级进行动态授权。',
+  '所有关键访问行为都会进入审计链路，便于复核与追踪。',
+  '项目阶段与部门职责联动，避免文档在不合规时机被扩散。',
+]
 
 const modeTitle = computed(() => (mode.value === 'login' ? '员工登录' : '首次登录修改密码'))
 
 const modeDescription = computed(() =>
   mode.value === 'login'
     ? '请输入员工工号和登录密码。'
-    : '首次登录必须先修改初始密码，完成后才能进入系统。',
+    : '首次登录必须先完成密码修改，修改成功后才可进入系统。',
 )
 
 async function submitLogin() {
@@ -99,6 +52,7 @@ async function submitLogin() {
       mode.value = 'change-password'
       successMessage.value = '检测到首次登录，请先完成密码修改。'
       passwordForm.oldPassword = loginForm.password
+      passwordForm.newPassword = ''
       return
     }
 
@@ -131,39 +85,24 @@ async function submitPasswordChange() {
 
 <template>
   <div class="login-page">
+    <div class="login-page__mask"></div>
     <div class="login-page__inner">
-      <el-card shadow="never" class="login-page__overview">
-        <div class="login-page__heading">
-          <p class="login-page__eyebrow">ABAC 权限平台</p>
-          <h1>ABAC 权限控制与安全审计系统</h1>
-          <p>
-            系统围绕员工身份、项目阶段、资产密级、环境约束和审计记录组织访问控制逻辑，适合用于展示
-            ABAC 在业务流程中的落地方式。
-          </p>
+      <section class="login-page__intro">
+        <p class="login-page__eyebrow">ABAC Access Control</p>
+        <h1>{{ systemTitle }}</h1>
+        <p class="login-page__summary">
+          {{ systemSummary }}
+        </p>
+
+        <div class="login-page__panel">
+          <p class="login-page__panel-title">系统说明</p>
+          <ul class="login-page__feature-list">
+            <li v-for="feature in featureList" :key="feature">
+              {{ feature }}
+            </li>
+          </ul>
         </div>
-
-        <div class="login-page__tags">
-          <el-tag>Element Plus</el-tag>
-          <el-tag type="success">ECharts</el-tag>
-          <el-tag type="warning">ABAC</el-tag>
-        </div>
-
-        <el-card shadow="never" class="login-page__chart-card">
-          <template #header>
-            <div class="login-page__chart-header">
-              <span>控制维度概览</span>
-              <span class="login-page__chart-note">示意数据</span>
-            </div>
-          </template>
-          <InsightChart :option="chartOption" height="260px" />
-        </el-card>
-
-        <ul class="login-page__list">
-          <li>项目页展示阶段分布、列表查询与项目创建入口。</li>
-          <li>资产页展示可见资产、类型分布与按条件过滤能力。</li>
-          <li>审计页展示授权决策与交接业务的全过程留痕。</li>
-        </ul>
-      </el-card>
+      </section>
 
       <el-card shadow="never" class="login-card">
         <div class="login-card__heading">
@@ -193,7 +132,8 @@ async function submitPasswordChange() {
           <el-form-item label="员工工号">
             <el-input
               v-model="loginForm.employeeCode"
-              placeholder="例如 1001"
+              placeholder="请输入员工工号"
+              autocomplete="username"
               @keyup.enter="submitLogin"
             />
           </el-form-item>
@@ -203,6 +143,7 @@ async function submitPasswordChange() {
               type="password"
               show-password
               placeholder="请输入登录密码"
+              autocomplete="current-password"
               @keyup.enter="submitLogin"
             />
           </el-form-item>
@@ -218,6 +159,7 @@ async function submitPasswordChange() {
               type="password"
               show-password
               placeholder="请输入原密码"
+              autocomplete="current-password"
               @keyup.enter="submitPasswordChange"
             />
           </el-form-item>
@@ -227,6 +169,7 @@ async function submitPasswordChange() {
               type="password"
               show-password
               placeholder="请设置新的登录密码"
+              autocomplete="new-password"
               @keyup.enter="submitPasswordChange"
             />
           </el-form-item>
@@ -249,78 +192,102 @@ async function submitPasswordChange() {
 
 <style scoped>
 .login-page {
+  --login-bg: linear-gradient(135deg, #f3f6fb 0%, #eef2f8 45%, #f9fbfd 100%);
+  --login-panel-bg: rgba(255, 255, 255, 0.82);
+  --login-panel-border: rgba(148, 163, 184, 0.28);
+  --login-title: #0f172a;
+  --login-text: #475569;
+  --login-muted: #64748b;
+  --login-accent: #1d4ed8;
+
+  position: relative;
   min-height: 100vh;
+  overflow: hidden;
   padding: 32px 16px;
-  background: #f5f7fa;
+  background: var(--login-bg);
+}
+
+.login-page__mask {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top left, rgba(29, 78, 216, 0.14), transparent 32%),
+    radial-gradient(circle at bottom right, rgba(15, 118, 110, 0.12), transparent 28%);
+  pointer-events: none;
 }
 
 .login-page__inner {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 420px;
-  gap: 24px;
-  max-width: 1180px;
+  gap: 28px;
+  align-items: center;
+  max-width: 1160px;
+  min-height: calc(100vh - 64px);
   margin: 0 auto;
 }
 
-.login-page__overview,
-.login-card,
-.login-page__chart-card {
-  border: 1px solid #e4e7ed;
-  box-shadow: none;
-}
-
-.login-page__overview {
-  display: grid;
-  gap: 20px;
-}
-
-.login-page__heading h1 {
-  margin: 0 0 12px;
-  font-size: 30px;
-  color: #303133;
-}
-
-.login-page__heading p {
-  margin: 0;
-  line-height: 1.8;
-  color: #606266;
+.login-page__intro {
+  max-width: 640px;
+  color: var(--login-title);
 }
 
 .login-page__eyebrow {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   font-size: 12px;
-  font-weight: 600;
-  color: var(--el-color-primary);
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--login-accent);
+  text-transform: uppercase;
 }
 
-.login-page__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.login-page__chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.login-page__chart-note {
-  font-size: 12px;
-  color: #909399;
-}
-
-.login-page__list {
+.login-page__intro h1 {
   margin: 0;
-  padding-left: 18px;
-  color: #606266;
-  line-height: 1.9;
+  font-size: clamp(32px, 4vw, 46px);
+  line-height: 1.15;
+}
+
+.login-page__summary {
+  max-width: 560px;
+  margin: 18px 0 0;
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--login-text);
+}
+
+.login-page__panel,
+.login-card {
+  border: 1px solid var(--login-panel-border);
+  background: var(--login-panel-bg);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+}
+
+.login-page__panel {
+  margin-top: 28px;
+  padding: 24px 28px;
+  border-radius: 24px;
+}
+
+.login-page__panel-title {
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--login-title);
+}
+
+.login-page__feature-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--login-text);
+  line-height: 1.8;
 }
 
 .login-card {
-  align-self: start;
+  border-radius: 24px;
 }
 
 .login-card__heading {
@@ -329,13 +296,14 @@ async function submitPasswordChange() {
 
 .login-card__heading h2 {
   margin: 0 0 8px;
-  font-size: 24px;
-  color: #303133;
+  font-size: 26px;
+  color: var(--login-title);
 }
 
 .login-card__heading p {
   margin: 0;
-  color: #909399;
+  line-height: 1.7;
+  color: var(--login-muted);
 }
 
 .login-card__alert {
@@ -352,8 +320,23 @@ async function submitPasswordChange() {
 }
 
 @media (max-width: 960px) {
+  .login-page {
+    padding: 20px 12px;
+  }
+
   .login-page__inner {
     grid-template-columns: 1fr;
+    align-items: stretch;
+    min-height: auto;
+  }
+
+  .login-page__intro {
+    max-width: none;
+  }
+
+  .login-page__panel {
+    margin-top: 20px;
+    padding: 20px;
   }
 }
 </style>
