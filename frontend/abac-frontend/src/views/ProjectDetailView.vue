@@ -6,7 +6,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import InsightChart from '@/components/InsightChart.vue'
 import {
   deleteAsset,
-  exportAssetReference,
   getAssetsByProject,
 } from '@/api/asset'
 import {
@@ -25,6 +24,7 @@ import {
   securityLevelOptions,
 } from '@/constants/options'
 import { useAuthStore } from '@/stores/auth'
+import { triggerAssetDownload } from '@/utils/assetDownload'
 import {
   canDeleteAsset as canDeleteAssetByRules,
   canExportAsset as canExportAssetByRules,
@@ -61,8 +61,8 @@ const phaseOwnerPreview = ref(null)
 const phaseOwnerLoading = ref(false)
 const memberLoadError = ref('')
 
-const exportedPaths = reactive({})
-const exportingAssetIds = reactive({})
+const downloadedAssetIds = reactive({})
+const downloadingAssetIds = reactive({})
 
 const memberForm = reactive({
   employeeId: '',
@@ -92,7 +92,7 @@ const sensitiveAssetCount = computed(
       .length,
 )
 
-const exportedCount = computed(() => Object.keys(exportedPaths).length)
+const downloadedCount = computed(() => Object.keys(downloadedAssetIds).length)
 
 const isArchived = computed(
   () => findOption(projectPhaseOptions, project.value?.projectPhase)?.key === 'ARCHIVED',
@@ -189,9 +189,9 @@ const assetTypeChartOption = computed(() => {
   }
 })
 
-function resetExportState() {
-  Object.keys(exportedPaths).forEach((key) => delete exportedPaths[key])
-  Object.keys(exportingAssetIds).forEach((key) => delete exportingAssetIds[key])
+function resetDownloadState() {
+  Object.keys(downloadedAssetIds).forEach((key) => delete downloadedAssetIds[key])
+  Object.keys(downloadingAssetIds).forEach((key) => delete downloadingAssetIds[key])
 }
 
 function resetMemberForm() {
@@ -266,7 +266,7 @@ async function loadProjectCore() {
   assets.value = assetData || []
   selectedPhase.value = getNextPhaseValue(projectData.projectPhase)
   phaseOwnerPreview.value = null
-  resetExportState()
+  resetDownloadState()
 }
 
 async function loadProjectMembers({ silent = false } = {}) {
@@ -370,23 +370,23 @@ async function handleAddMember() {
   }
 }
 
-async function handleExportAsset(assetId) {
+async function handleDownloadAsset(assetId) {
   const asset = assets.value.find((item) => item.assetId === assetId)
   if (!canExportAsset(asset)) {
-    ElMessage.warning('当前账号不能导出该资产引用')
+    ElMessage.warning('当前账号不能下载该资产')
     return
   }
 
-  exportingAssetIds[assetId] = true
+  downloadingAssetIds[assetId] = true
 
   try {
-    const result = await exportAssetReference(assetId)
-    exportedPaths[assetId] = result.filePath
-    ElMessage.success('引用导出成功')
+    await triggerAssetDownload(assetId)
+    downloadedAssetIds[assetId] = true
+    ElMessage.success('已开始下载文件')
   } catch (error) {
     ElMessage.error(error.message)
   } finally {
-    delete exportingAssetIds[assetId]
+    delete downloadingAssetIds[assetId]
   }
 }
 
@@ -501,8 +501,8 @@ watch(selectedPhase, () => {
         <p>当前资产列表已经体现了该账号此刻的 ABAC 决策结果。</p>
       </el-card>
       <el-card shadow="never" class="summary-card">
-        <el-statistic title="已导出引用" :value="exportedCount" />
-        <p>只有显式执行导出动作后，外部引用路径才会显示出来。</p>
+        <el-statistic title="已发起下载" :value="downloadedCount" />
+        <p>本页会直接发起下载，不再在表格中展示导出链接。</p>
       </el-card>
     </section>
 
@@ -757,7 +757,7 @@ watch(selectedPhase, () => {
           <div>
             <h3>项目资产</h3>
             <p>
-              默认读取只返回元数据；外部引用需在显式执行导出后才会显示。
+              默认读取只返回元数据；点击下载后会直接发起浏览器下载。
             </p>
           </div>
           <el-tag type="info" effect="light">共 {{ assets.length }} 条</el-tag>
@@ -784,9 +784,16 @@ watch(selectedPhase, () => {
           </template>
         </el-table-column>
         <el-table-column prop="createdByEmployeeId" label="创建人" min-width="110" />
-        <el-table-column label="引用地址" min-width="230">
+        <el-table-column label="下载状态" min-width="140">
           <template #default="{ row }">
-            <span class="reference-text">{{ exportedPaths[row.assetId] || '导出后可见' }}</span>
+            <el-tag
+              v-if="downloadedAssetIds[row.assetId]"
+              type="success"
+              effect="light"
+            >
+              已发起下载
+            </el-tag>
+            <span v-else class="reference-text">未下载</span>
           </template>
         </el-table-column>
         <el-table-column prop="description" label="说明" min-width="180" />
@@ -797,10 +804,10 @@ watch(selectedPhase, () => {
                 v-if="canExportAsset(row)"
                 type="primary"
                 link
-                :loading="Boolean(exportingAssetIds[row.assetId])"
-                @click="handleExportAsset(row.assetId)"
+                :loading="Boolean(downloadingAssetIds[row.assetId])"
+                @click="handleDownloadAsset(row.assetId)"
               >
-                导出引用
+                下载文件
               </el-button>
               <el-button
                 v-if="canDeleteAsset(row)"

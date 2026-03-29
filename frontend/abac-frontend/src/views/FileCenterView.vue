@@ -3,10 +3,11 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import InsightChart from '@/components/InsightChart.vue'
-import { exportAssetReference, queryAssets, uploadAsset } from '@/api/asset'
+import { queryAssets, uploadAsset } from '@/api/asset'
 import { getProject } from '@/api/project'
 import { assetTypeOptions, getOptionLabel, projectPhaseOptions, securityLevelOptions } from '@/constants/options'
 import { useAuthStore } from '@/stores/auth'
+import { triggerAssetDownload } from '@/utils/assetDownload'
 import { getAllowedAssetTypeOptions } from '@/utils/accessControl'
 
 const authStore = useAuthStore()
@@ -277,15 +278,8 @@ async function handleDownload(asset) {
   downloadingAssetIds[asset.assetId] = true
 
   try {
-    const result = await exportAssetReference(asset.assetId)
-    const downloadUrl = result.downloadUrl || result.filePath
-
-    if (!downloadUrl) {
-      throw new Error('后端没有返回可用的下载地址')
-    }
-
-    window.open(downloadUrl, '_blank', 'noopener')
-    ElMessage.success('已生成受控下载链接')
+    await triggerAssetDownload(asset.assetId)
+    ElMessage.success('已开始下载文件')
   } catch (error) {
     ElMessage.error(error.message)
   } finally {
@@ -306,7 +300,7 @@ watch(allowedUploadAssetTypeOptions, syncUploadAssetTypeSelection, { immediate: 
         <h2 class="files-hero__title">MinIO 文件中心</h2>
         <p class="files-hero__description">
           文件内容现在存储在对象存储中，MySQL 继续保存资产业务数据与存储引用。上传会写入
-          MinIO，下载则通过后端受控导出临时链接，继续复用现有 ABAC 与审计边界。
+          MinIO，下载会在权限校验通过后直接发起浏览器下载，继续复用现有 ABAC 与审计边界。
         </p>
       </div>
       <el-alert
@@ -474,7 +468,7 @@ watch(allowedUploadAssetTypeOptions, syncUploadAssetTypeSelection, { immediate: 
           <div class="panel-card__header">
             <div>
               <h3>下载入口</h3>
-              <p>点击后调用受控导出接口，由后端返回 MinIO 临时下载地址。</p>
+              <p>点击后执行权限校验，并直接发起浏览器下载。</p>
             </div>
           </div>
         </template>

@@ -22,7 +22,7 @@ public class AbacAccessControlApplication {
 
 		// TODO 管理员自定义策略参数还没有确认
 
-		// TODO 员工没法提出离职
+		// TODO 不能让项目中的外包员工可被选中为部门负责人
 
 		// TODO 项目中上传资产时可以选择非本阶段
 
