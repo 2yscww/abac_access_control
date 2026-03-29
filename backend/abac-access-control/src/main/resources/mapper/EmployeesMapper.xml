@@ -116,6 +116,7 @@
             employee_code,
             employee_name,
             dept_id,
+            is_contractor,
             status
         FROM employees
         WHERE status = 'ACTIVE'
@@ -134,6 +135,7 @@
             employee_code,
             employee_name,
             dept_id,
+            is_contractor,
             status
         FROM employees
         WHERE status = 'ACTIVE'

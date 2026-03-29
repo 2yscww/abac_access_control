@@ -714,11 +714,11 @@ onMounted(() => {
         </div>
 
         <el-form label-position="top">
-          <el-form-item label="选择同部门在职员工">
+          <el-form-item label="选择同部门正式在职员工">
             <el-select
               v-model="assignForm.newManagerEmployeeId"
               filterable
-              placeholder="请选择接任负责人"
+              placeholder="请选择接任负责人（外包已排除）"
               style="width: 100%"
               :loading="candidatesLoading"
             >
@@ -734,7 +734,7 @@ onMounted(() => {
 
         <el-empty
           v-if="!candidatesLoading && candidates.length === 0"
-          description="当前部门没有可接任的在职员工"
+          description="当前部门没有可接任的正式在职员工"
         />
       </template>
 

@@ -68,6 +68,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         if (newManager.getStatus() != EmployeeStatus.ACTIVE) {
             throw new BizException("新负责人状态不可用");
         }
+        if (Boolean.TRUE.equals(newManager.getIsContractor())) {
+            throw new BizException("外包员工不能担任部门负责人");
+        }
         if (!department.getDeptId().equals(newManager.getDeptId())) {
             throw new BizException("新负责人必须属于同一部门");
         }
@@ -157,7 +160,9 @@ public class DepartmentServiceImpl implements DepartmentService {
             throw new BizException("部门不存在");
         }
 
-        return employeesMapper.selectActiveOptionsByDeptId(deptId);
+        return employeesMapper.selectActiveOptionsByDeptId(deptId).stream()
+                .filter(candidate -> !Boolean.TRUE.equals(candidate.getIsContractor()))
+                .toList();
     }
 
     private void ensureManagementOperator(Long operatorEmployeeId) {

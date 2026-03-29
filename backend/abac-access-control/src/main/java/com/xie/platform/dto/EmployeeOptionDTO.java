@@ -10,5 +10,6 @@ public class EmployeeOptionDTO {
     private String employeeCode;
     private String employeeName;
     private Long deptId;
+    private Boolean isContractor;
     private EmployeeStatus status;
 }

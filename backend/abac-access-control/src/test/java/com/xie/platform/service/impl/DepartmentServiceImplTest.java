@@ -3,6 +3,7 @@ package com.xie.platform.service.impl;
 import com.xie.platform.access.action.Action;
 import com.xie.platform.dto.AssignDepartmentManagerDTO;
 import com.xie.platform.dto.DepartmentManagerHandoverTodoDTO;
+import com.xie.platform.dto.EmployeeOptionDTO;
 import com.xie.platform.exception.BizException;
 import com.xie.platform.mapper.DepartmentMapper;
 import com.xie.platform.mapper.EmployeesMapper;
@@ -27,6 +28,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -144,6 +146,67 @@ class DepartmentServiceImplTest {
     }
 
     @Test
+    void assignDepartmentManager_shouldRejectContractorCandidate() {
+        Employees operator = buildEmployee(1L, 10L, EmployeeStatus.ACTIVE, "1001", "Approver");
+        Department operatorDept = new Department();
+        operatorDept.setDeptId(10L);
+        operatorDept.setDeptType(DeptType.MANAGEMENT);
+
+        Department targetDept = new Department();
+        targetDept.setDeptId(3L);
+        targetDept.setDeptName("研发部");
+        targetDept.setDeptType(DeptType.RD);
+        targetDept.setManagerId(8L);
+
+        Employees contractor = buildEmployee(9L, 3L, EmployeeStatus.ACTIVE, "1009", "Contractor");
+        contractor.setIsContractor(true);
+
+        when(employeesMapper.selectByEmployeeId(1L)).thenReturn(operator);
+        when(departmentMapper.selectById(10L)).thenReturn(operatorDept);
+        when(departmentMapper.selectById(3L)).thenReturn(targetDept);
+        when(employeesMapper.selectByEmployeeId(9L)).thenReturn(contractor);
+
+        AssignDepartmentManagerDTO dto = new AssignDepartmentManagerDTO();
+        dto.setDeptId(3L);
+        dto.setNewManagerEmployeeId(9L);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> departmentService.assignDepartmentManager(dto, 1L)
+        );
+
+        assertEquals("外包员工不能担任部门负责人", exception.getMessage());
+        verify(departmentMapper, never()).updateManagerId(any(), any());
+        verifyNoInteractions(projectMapper, auditLogService, projectMemberService);
+    }
+
+    @Test
+    void queryManagerCandidates_shouldExcludeContractors() {
+        Employees operator = buildEmployee(1L, 10L, EmployeeStatus.ACTIVE, "1001", "Approver");
+        Department operatorDept = new Department();
+        operatorDept.setDeptId(10L);
+        operatorDept.setDeptType(DeptType.MANAGEMENT);
+
+        Department targetDept = new Department();
+        targetDept.setDeptId(3L);
+        targetDept.setDeptType(DeptType.RD);
+
+        EmployeeOptionDTO regular = buildEmployeeOption(9L, "1009", "Regular", 3L, false);
+        EmployeeOptionDTO contractor = buildEmployeeOption(10L, "1010", "Contractor", 3L, true);
+
+        when(employeesMapper.selectByEmployeeId(1L)).thenReturn(operator);
+        when(departmentMapper.selectById(10L)).thenReturn(operatorDept);
+        when(departmentMapper.selectById(3L)).thenReturn(targetDept);
+        when(employeesMapper.selectActiveOptionsByDeptId(3L)).thenReturn(List.of(regular, contractor));
+
+        List<EmployeeOptionDTO> result = departmentService.queryManagerCandidates(3L, 1L);
+
+        assertEquals(1, result.size());
+        assertEquals(9L, result.get(0).getEmployeeId());
+        assertTrue(result.stream().noneMatch(item -> Boolean.TRUE.equals(item.getIsContractor())));
+    }
+
+    @Test
     void queryManagerHandoverTodos_shouldAttachAffectedProjects() {
         Employees operator = buildEmployee(1L, 10L, EmployeeStatus.ACTIVE, "1001", "Approver");
         Department operatorDept = new Department();
@@ -188,5 +251,21 @@ class DepartmentServiceImplTest {
         employee.setEmployeeCode(employeeCode);
         employee.setEmployeeName(employeeName);
         return employee;
+    }
+
+    private EmployeeOptionDTO buildEmployeeOption(
+            Long employeeId,
+            String employeeCode,
+            String employeeName,
+            Long deptId,
+            boolean isContractor) {
+        EmployeeOptionDTO option = new EmployeeOptionDTO();
+        option.setEmployeeId(employeeId);
+        option.setEmployeeCode(employeeCode);
+        option.setEmployeeName(employeeName);
+        option.setDeptId(deptId);
+        option.setIsContractor(isContractor);
+        option.setStatus(EmployeeStatus.ACTIVE);
+        return option;
     }
 }
