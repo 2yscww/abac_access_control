@@ -61,6 +61,20 @@ class AssetTypeOwnershipPolicyTest {
         assertEquals(PolicyResult.ALLOW, result);
     }
 
+    @Test
+    void evaluate_shouldAllowManagementWritingRequirementDoc() {
+        AssetTypeOwnershipPolicy policy = new AssetTypeOwnershipPolicy();
+
+        PolicyResult result = policy.evaluate(
+                new Subject(1L, 2L, DeptType.MANAGEMENT, 1L, EmployeeLevel.VP, false),
+                buildAssetResource(AssetType.REQUIREMENT_DOC),
+                Action.WRITE,
+                buildEnvironment()
+        );
+
+        assertEquals(PolicyResult.ALLOW, result);
+    }
+
     private Resource buildAssetResource(AssetType assetType) {
         return Resource.builder()
                 .type(ResourceType.ASSET)

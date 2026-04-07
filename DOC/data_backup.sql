@@ -24,14 +24,14 @@ INSERT INTO employees(employee_code,employee_name,dept_id,branch_id,level,passwo
 
 -- * 研发部人员
 
-INSERT INTO employees(employee_code,employee_name,dept_id,branch_id,level,password) VALUES(1004,'山东小红',4,1,9,'$2a$10$oRZKjeelAEwFX2mZQciPVe0Zwq9Jq/s1.ahjjQ6by.f2emPTH1qNy');
+INSERT INTO employees(employee_code,employee_name,dept_id,branch_id,level,password) VALUES(1015,'尼古拉斯',4,1,6,'$2a$10$oRZKjeelAEwFX2mZQciPVe0Zwq9Jq/s1.ahjjQ6by.f2emPTH1qNy');
 
 -- * 测试部人员
-INSERT INTO employees(employee_code,employee_name,dept_id,branch_id,level,password) VALUES(1005,'丁源',5,1,9,'$2a$10$oRZKjeelAEwFX2mZQciPVe0Zwq9Jq/s1.ahjjQ6by.f2emPTH1qNy');
+INSERT INTO employees(employee_code,employee_name,dept_id,branch_id,level,password) VALUES(1016,'运维替补',5,1,9,'$2a$10$oRZKjeelAEwFX2mZQciPVe0Zwq9Jq/s1.ahjjQ6by.f2emPTH1qNy');
 
 
 -- * 运维部人员
 
-INSERT INTO employees(employee_code,employee_name,dept_id,branch_id,level,password) VALUES(1006,'运维人员',5,1,9,'$2a$10$oRZKjeelAEwFX2mZQciPVe0Zwq9Jq/s1.ahjjQ6by.f2emPTH1qNy');
+INSERT INTO employees(employee_code,employee_name,dept_id,branch_id,level,password) VALUES(1007,'运维高手',6,1,9,'$2a$10$oRZKjeelAEwFX2mZQciPVe0Zwq9Jq/s1.ahjjQ6by.f2emPTH1qNy');
 
 

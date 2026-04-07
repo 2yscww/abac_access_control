@@ -17,7 +17,7 @@ public final class AssetTypeOwnershipRules {
         }
 
         return switch (assetType) {
-            case REQUIREMENT_DOC -> EnumSet.of(DeptType.PRODUCT);
+            case REQUIREMENT_DOC -> EnumSet.of(DeptType.PRODUCT, DeptType.MANAGEMENT);
             case DESIGN_DOC, SOURCE_CODE -> EnumSet.of(DeptType.RD);
             case TEST_REPORT -> EnumSet.of(DeptType.QA);
             case DEPLOY_SCRIPT, OPS_DOC -> EnumSet.of(DeptType.OPS);

@@ -81,6 +81,35 @@ CREATE TABLE employees (
 -- created_at：记录创建时间
 -- updated_at：记录更新时间
 
+
+-- ! 项目表
+CREATE TABLE projects (
+    project_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    project_name VARCHAR(128) NOT NULL,
+    project_phase INT NOT NULL,
+    security_level INT NOT NULL,
+    created_by_employee_id BIGINT,
+    owner_id BIGINT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+-- * projects：项目表，用于项目维度的权限控制与资源归属
+
+-- project_id：项目唯一标识
+-- project_name：项目名称（如 AI手机项目）
+-- * project_phase：项目阶段
+-- * security_level 项目保密等级 (公开、内部、机密、高度机密)
+-- created_by_employee_id：项目创建人（员工ID）
+-- owner_id : 实际负责人(员工ID)
+-- created_at：项目创建时间
+-- updated_at：项目更新时间
+
+-- * 立项 → 需求设计 → 研发实现 → 测试验证 → 上线交付 → 归档
+-- ? 数据库层面不使用枚举类型规定项目阶段，代码层面用枚举写死
+
+
+
+
 -- ! 项目成员表
 CREATE TABLE project_members (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -126,30 +155,7 @@ CREATE TABLE project_members (
 
 
 
--- ! 项目表
-CREATE TABLE projects (
-    project_id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    project_name VARCHAR(128) NOT NULL,
-    project_phase INT NOT NULL,
-    security_level INT NOT NULL,
-    created_by_employee_id BIGINT,
-    owner_id BIGINT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
--- * projects：项目表，用于项目维度的权限控制与资源归属
 
--- project_id：项目唯一标识
--- project_name：项目名称（如 AI手机项目）
--- * project_phase：项目阶段
--- * security_level 项目保密等级 (公开、内部、机密、高度机密)
--- created_by_employee_id：项目创建人（员工ID）
--- owner_id : 实际负责人(员工ID)
--- created_at：项目创建时间
--- updated_at：项目更新时间
-
--- * 立项 → 需求设计 → 研发实现 → 测试验证 → 上线交付 → 归档
--- ? 数据库层面不使用枚举类型规定项目阶段，代码层面用枚举写死
 
 
 -- ! 项目资产表
