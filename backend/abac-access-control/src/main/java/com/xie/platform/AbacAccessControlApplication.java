@@ -14,9 +14,7 @@ public class AbacAccessControlApplication {
         SpringApplication.run(AbacAccessControlApplication.class, args);
 
 
-        // TODO 项目启动前，需要有一个临时接口去让DBA添加部分员工，让这些行政/管理/HR去把系统信息跑起来
 
-		//TODO 测试项目有没有严格按照矩阵推进
 		
 
 		// 创建加密器

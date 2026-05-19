@@ -190,6 +190,46 @@ class ProjectServiceImplTest {
         verify(pep).checkProjectAccess(7L, 11L, Action.ADVANCE_PHASE);
     }
 
+    @Test
+    void createProject_shouldRejectDuplicateProjectName() {
+        CreateProjectDTO dto = new CreateProjectDTO();
+        dto.setProjectName("Alpha");
+        dto.setProjectPhase(ProjectPhase.DEVELOPMENT.getCode());
+        dto.setSecurityLevel(SecurityLevel.INTERNAL.getLevel());
+        dto.setOwnerId(9L);
+
+        Projects existing = new Projects();
+        existing.setProjectId(1L);
+        existing.setProjectName("Alpha");
+
+        when(projectMapper.selectByName("Alpha")).thenReturn(existing);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> projectService.createProject(dto, 7L)
+        );
+
+        assertEquals("项目名称已存在", exception.getMessage());
+        verify(pep, never()).checkAccess(any(), any(), any());
+    }
+
+    @Test
+    void getPhaseOwnerPreview_shouldRejectArchivedProject() {
+        Projects project = new Projects();
+        project.setProjectId(11L);
+        project.setProjectPhase(ProjectPhase.ARCHIVED);
+
+        when(projectMapper.selectById(11L)).thenReturn(project);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> projectService.getPhaseOwnerPreview(11L, ProjectPhase.ARCHIVED.getCode(), 7L)
+        );
+
+        assertEquals("已归档项目不能修改阶段", exception.getMessage());
+        verify(pep).checkProjectAccess(7L, 11L, Action.ADVANCE_PHASE);
+    }
+
     private Employees buildEmployee(Long employeeId, Long deptId, EmployeeStatus status) {
         Employees employee = new Employees();
         employee.setEmployeeId(employeeId);

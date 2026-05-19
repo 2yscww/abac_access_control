@@ -6,6 +6,7 @@ import com.xie.platform.access.pep.PolicyEnforcementPoint;
 import com.xie.platform.access.resource.Resource;
 import com.xie.platform.dto.CreateAssetDTO;
 import com.xie.platform.dto.UploadAssetDTO;
+import com.xie.platform.exception.BizException;
 import com.xie.platform.mapper.ProjectAssetsMapper;
 import com.xie.platform.mapper.ProjectMapper;
 import com.xie.platform.model.ProjectAssets;
@@ -27,9 +28,11 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -182,6 +185,35 @@ class ProjectAssetsServiceImplTest {
         assertEquals("https://minio.example.com/presigned/demo", result.get("filePath"));
         assertEquals("https://minio.example.com/presigned/demo", result.get("downloadUrl"));
         assertEquals("MINIO", result.get("storageType"));
+    }
+
+    @Test
+    void deleteAsset_shouldDeleteMetadataAndManagedFile() {
+        ProjectAssets asset = buildAsset(22L, 11L, "minio://abac-assets/project-assets/1/demo.xlsx");
+
+        when(projectAssetsMapper.selectById(22L)).thenReturn(asset);
+
+        projectAssetsService.deleteAsset(22L, 7L);
+
+        verify(pep).checkAssetAccess(7L, 22L, Action.DELETE);
+        verify(projectAssetsMapper).deleteById(22L);
+        verify(fileStorageService).delete("minio://abac-assets/project-assets/1/demo.xlsx");
+    }
+
+    @Test
+    void exportAssetReference_shouldRejectAssetWithoutFileReference() {
+        ProjectAssets asset = buildAsset(23L, 11L, null);
+
+        when(projectAssetsMapper.selectById(23L)).thenReturn(asset);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> projectAssetsService.exportAssetReference(23L, 7L)
+        );
+
+        assertEquals("该资产未配置外部地址引用", exception.getMessage());
+        verify(pep).checkAssetAccess(7L, 23L, Action.EXPORT);
+        verify(fileStorageService, never()).generateDownloadUrl(any());
     }
 
     private CreateAssetDTO buildCreateAssetDto() {

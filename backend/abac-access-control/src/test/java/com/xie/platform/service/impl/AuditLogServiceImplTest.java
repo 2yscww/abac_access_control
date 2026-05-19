@@ -254,6 +254,21 @@ class AuditLogServiceImplTest {
         assertNull(normalized.getStartTime());
     }
 
+    @Test
+    void queryAuditLogs_shouldRejectWhenStartTimeIsAfterEndTime() {
+        AuditLogQueryDTO query = new AuditLogQueryDTO();
+        query.setStartTime(LocalDateTime.of(2026, 3, 20, 11, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 3, 20, 10, 0, 0));
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> auditLogService.queryAuditLogs(query, 9L)
+        );
+
+        assertEquals("审计查询开始时间不能晚于结束时间", exception.getMessage());
+        verifyNoInteractions(employeesMapper, departmentMapper, auditLogMapper);
+    }
+
     private Employees buildOperator(Long employeeId, Long deptId, EmployeeStatus status) {
         Employees operator = new Employees();
         operator.setEmployeeId(employeeId);

@@ -238,6 +238,44 @@ class DepartmentServiceImplTest {
         assertEquals(List.of(project), result.get(0).getAffectedProjects());
     }
 
+    @Test
+    void queryManagerHandoverTodos_shouldRejectNonManagementOperator() {
+        Employees operator = buildEmployee(1L, 2L, EmployeeStatus.ACTIVE, "1001", "Approver");
+        Department operatorDept = new Department();
+        operatorDept.setDeptId(2L);
+        operatorDept.setDeptType(DeptType.RD);
+
+        when(employeesMapper.selectByEmployeeId(1L)).thenReturn(operator);
+        when(departmentMapper.selectById(2L)).thenReturn(operatorDept);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> departmentService.queryManagerHandoverTodos(1L)
+        );
+
+        assertEquals("仅管理层允许执行该操作", exception.getMessage());
+        verifyNoInteractions(projectMapper);
+    }
+
+    @Test
+    void queryManagerCandidates_shouldRejectMissingDepartment() {
+        Employees operator = buildEmployee(1L, 10L, EmployeeStatus.ACTIVE, "1001", "Approver");
+        Department operatorDept = new Department();
+        operatorDept.setDeptId(10L);
+        operatorDept.setDeptType(DeptType.MANAGEMENT);
+
+        when(employeesMapper.selectByEmployeeId(1L)).thenReturn(operator);
+        when(departmentMapper.selectById(10L)).thenReturn(operatorDept);
+        when(departmentMapper.selectById(3L)).thenReturn(null);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> departmentService.queryManagerCandidates(3L, 1L)
+        );
+
+        assertEquals("部门不存在", exception.getMessage());
+    }
+
     private Employees buildEmployee(
             Long employeeId,
             Long deptId,

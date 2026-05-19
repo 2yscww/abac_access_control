@@ -6,6 +6,7 @@ import com.xie.platform.access.pdp.DecisionResult;
 import com.xie.platform.access.pdp.PolicyDecisionPoint;
 import com.xie.platform.access.pep.AccessDeniedException;
 import com.xie.platform.access.resource.Resource;
+import com.xie.platform.exception.BizException;
 import com.xie.platform.mapper.DepartmentMapper;
 import com.xie.platform.mapper.EmployeesMapper;
 import com.xie.platform.mapper.ProjectAssetsMapper;
@@ -208,6 +209,84 @@ class AbacPolicyEnforcementPointTest {
 
         assertFalse(result.isAllowed());
         verify(auditLogService).recordDecision(eq(1L), any(Resource.class), eq(Action.READ), any(Environment.class), eq(result));
+    }
+
+    @Test
+    void decideProjectAccess_shouldBuildFallbackEnvironmentWhenNoRequestContext() {
+        mockEmployeeContext(1L, 2L);
+
+        Projects project = new Projects();
+        project.setProjectId(11L);
+        project.setProjectPhase(ProjectPhase.DEVELOPMENT);
+        project.setSecurityLevel(SecurityLevel.INTERNAL);
+        project.setCreatedByEmployeeId(6L);
+        project.setOwnerId(8L);
+
+        when(projectMapper.selectById(11L)).thenReturn(project);
+        when(pdp.evaluate(any(), any(), eq(Action.READ), any())).thenReturn(
+                DecisionResult.deny("SecurityLevelPolicy", "denied")
+        );
+
+        DecisionResult result = pep.decideProjectAccess(1L, 11L, Action.READ);
+
+        assertFalse(result.isAllowed());
+        ArgumentCaptor<Environment> environmentCaptor = ArgumentCaptor.forClass(Environment.class);
+        verify(auditLogService).recordDecision(eq(1L), any(Resource.class), eq(Action.READ), environmentCaptor.capture(), eq(result));
+        assertEquals("unknown", environmentCaptor.getValue().getIpAddress());
+        assertEquals(null, environmentCaptor.getValue().getRequestUri());
+    }
+
+    @Test
+    void checkAccess_shouldThrowWhenEmployeeMissing() {
+        Resource resource = Resource.builder()
+                .resourceId(11L)
+                .projectId(11L)
+                .projectPhase(ProjectPhase.DEVELOPMENT)
+                .securityLevel(SecurityLevel.INTERNAL)
+                .build();
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> pep.checkAccess(99L, resource, Action.READ)
+        );
+
+        assertEquals("员工不存在：99", exception.getMessage());
+        verifyNoInteractions(auditLogService, pdp);
+    }
+
+    @Test
+    void checkProjectAccess_shouldThrowWhenProjectMissing() {
+        when(projectMapper.selectById(404L)).thenReturn(null);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> pep.checkProjectAccess(1L, 404L, Action.READ)
+        );
+
+        assertEquals("项目不存在：404", exception.getMessage());
+        verifyNoInteractions(auditLogService);
+    }
+
+    @Test
+    void checkAssetAccess_shouldThrowWhenAssetProjectMissing() {
+        ProjectAssets asset = new ProjectAssets();
+        asset.setAssetId(20L);
+        asset.setProjectId(11L);
+        asset.setAssetsType(AssetType.SOURCE_CODE);
+        asset.setAssetsStage(ProjectPhase.DEVELOPMENT);
+        asset.setSecurityLevel(SecurityLevel.INTERNAL);
+        asset.setCreatedByEmployeeId(7L);
+
+        when(projectAssetsMapper.selectById(20L)).thenReturn(asset);
+        when(projectMapper.selectById(11L)).thenReturn(null);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> pep.checkAssetAccess(1L, 20L, Action.READ)
+        );
+
+        assertEquals("资产所属项目不存在：11", exception.getMessage());
+        verifyNoInteractions(auditLogService, pdp);
     }
 
     private void mockCurrentRequest(String method, String uri, String remoteAddr) {
